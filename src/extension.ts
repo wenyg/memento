@@ -350,6 +350,9 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem> 
 	}
 }
 
+// Global WebView panel for tag files
+let tagFilesPanel: vscode.WebviewPanel | undefined;
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
@@ -577,16 +580,27 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 		// Sort files by creation time (newest first)
 		const sortedFiles = allFiles.sort((a, b) => b.birthtime.getTime() - a.birthtime.getTime());
 
-		// Create WebView panel
-		const panel = vscode.window.createWebviewPanel(
-			'tagFiles',
-			`Tag: ${tagInfo.tag}`,
-			vscode.ViewColumn.Beside,
-			{
-				enableScripts: true,
-				retainContextWhenHidden: true
-			}
-		);
+		// Create or reuse WebView panel
+		if (!tagFilesPanel) {
+			tagFilesPanel = vscode.window.createWebviewPanel(
+				'tagFiles',
+				`Tag Files`,
+				vscode.ViewColumn.Beside,
+				{
+					enableScripts: true,
+					retainContextWhenHidden: true
+				}
+			);
+
+			// Handle panel disposal
+			tagFilesPanel.onDidDispose(() => {
+				tagFilesPanel = undefined;
+			});
+		}
+
+		// Update the panel title and reveal it
+		tagFilesPanel.title = `Tag: ${tagInfo.tag}`;
+		tagFilesPanel.reveal(vscode.ViewColumn.Beside);
 
 		// Build HTML content
 		let filesHtml = '';
@@ -768,7 +782,7 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 			</html>
 		`;
 
-		panel.webview.html = html;
+		tagFilesPanel.webview.html = html;
 
 	} catch (error) {
 		console.error('Error showing tag files:', error);
