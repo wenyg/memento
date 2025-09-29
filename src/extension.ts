@@ -282,6 +282,68 @@ class TagTreeProvider implements vscode.TreeDataProvider<TagItem> {
 	}
 }
 
+enum ViewMode {
+	FILES = 'files',
+	TAGS = 'tags'
+}
+
+class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem> {
+	private _onDidChangeTreeData: vscode.EventEmitter<MdFileItem | TagItem | undefined | null | void> = new vscode.EventEmitter<MdFileItem | TagItem | undefined | null | void>();
+	readonly onDidChangeTreeData: vscode.Event<MdFileItem | TagItem | undefined | null | void> = this._onDidChangeTreeData.event;
+
+	private currentMode: ViewMode = ViewMode.FILES;
+	private fileProvider: MdFilesProvider;
+	private tagProvider: TagTreeProvider;
+
+	constructor() {
+		this.fileProvider = new MdFilesProvider();
+		this.tagProvider = new TagTreeProvider();
+
+		// Listen to changes from both providers
+		this.fileProvider.onDidChangeTreeData(() => {
+			if (this.currentMode === ViewMode.FILES) {
+				this._onDidChangeTreeData.fire();
+			}
+		});
+
+		this.tagProvider.onDidChangeTreeData(() => {
+			if (this.currentMode === ViewMode.TAGS) {
+				this._onDidChangeTreeData.fire();
+			}
+		});
+	}
+
+	switchToFileView(): void {
+		this.currentMode = ViewMode.FILES;
+		this._onDidChangeTreeData.fire();
+	}
+
+	switchToTagView(): void {
+		this.currentMode = ViewMode.TAGS;
+		this._onDidChangeTreeData.fire();
+	}
+
+	refresh(): void {
+		if (this.currentMode === ViewMode.FILES) {
+			this.fileProvider.refresh();
+		} else {
+			this.tagProvider.refresh();
+		}
+	}
+
+	getTreeItem(element: MdFileItem | TagItem): vscode.TreeItem {
+		return element;
+	}
+
+	getChildren(element?: MdFileItem | TagItem): Thenable<(MdFileItem | TagItem)[]> {
+		if (this.currentMode === ViewMode.FILES) {
+			return this.fileProvider.getChildren(element as MdFileItem);
+		} else {
+			return this.tagProvider.getChildren(element as TagItem);
+		}
+	}
+}
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
@@ -290,26 +352,18 @@ export function activate(context: vscode.ExtensionContext) {
 	// This line of code will only be executed once when your extension is activated
 	console.log('Memento extension is now active!');
 
-	// Create the tree data providers
-	const treeProvider = new MdFilesProvider();
-	const tagTreeProvider = new TagTreeProvider();
+	// Create the main tree data provider
+	const mainProvider = new MainTreeProvider();
 
-	// Register the tree data providers
-	context.subscriptions.push(
-		vscode.window.createTreeView('mdFilesList', {
-			treeDataProvider: treeProvider,
-			showCollapseAll: true
-		})
-	);
+	// Register the main tree view
+	const treeView = vscode.window.createTreeView('mementoMainView', {
+		treeDataProvider: mainProvider,
+		showCollapseAll: true
+	});
 
-	context.subscriptions.push(
-		vscode.window.createTreeView('tagFilesList', {
-			treeDataProvider: tagTreeProvider,
-			showCollapseAll: true
-		})
-	);
+	context.subscriptions.push(treeView);
 
-	console.log('Tree views registered for mdFilesList and tagFilesList');
+	console.log('Main tree view registered');
 
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with registerCommand
@@ -329,19 +383,25 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(listMdFilesDisposable);
 
-	// Register refresh commands
+	// Register view switching commands
+	const switchToFileViewDisposable = vscode.commands.registerCommand('memento.switchToFileView', () => {
+		console.log('Switch to file view command triggered');
+		mainProvider.switchToFileView();
+	});
+
+	const switchToTagViewDisposable = vscode.commands.registerCommand('memento.switchToTagView', () => {
+		console.log('Switch to tag view command triggered');
+		mainProvider.switchToTagView();
+	});
+
 	const refreshDisposable = vscode.commands.registerCommand('memento.refreshMdFiles', () => {
-		console.log('Refresh MD files command triggered');
-		treeProvider.refresh();
+		console.log('Refresh command triggered');
+		mainProvider.refresh();
 	});
 
-	const refreshTagDisposable = vscode.commands.registerCommand('memento.refreshTagFiles', () => {
-		console.log('Refresh tag files command triggered');
-		tagTreeProvider.refresh();
-	});
-
+	context.subscriptions.push(switchToFileViewDisposable);
+	context.subscriptions.push(switchToTagViewDisposable);
 	context.subscriptions.push(refreshDisposable);
-	context.subscriptions.push(refreshTagDisposable);
 }
 
 async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birthtime: Date, relativePath: string}>> {
