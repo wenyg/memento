@@ -657,46 +657,32 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 		tagFilesPanel.title = `Tag: ${tagInfo.tag}`;
 		tagFilesPanel.reveal(vscode.ViewColumn.Beside);
 
-		// Build HTML content
-		let filesHtml = '';
+		// Process files and add HTML content
+		const processedFiles = [];
 		for (const file of sortedFiles) {
 			try {
 				// Read the file content
 				const fileContent = await fs.promises.readFile(file.path, 'utf-8');
 				const htmlContent = await markdownToHtml(fileContent, file.path);
 
-				filesHtml += `
-					<div class="file-container">
-						<div class="file-header">
-							<h2 class="file-title">${file.displayTitle}</h2>
-							<div class="file-meta">
-								<span class="file-path">${file.relativePath}</span>
-								<span class="file-date">${file.birthtime.toLocaleDateString()}</span>
-							</div>
-						</div>
-						<div class="file-content">
-							${htmlContent}
-						</div>
-					</div>
-				`;
+				processedFiles.push({
+					...file,
+					htmlContent: htmlContent,
+					rawContent: fileContent
+				});
 
 			} catch (error) {
 				console.error(`Error reading file ${file.path}:`, error);
-				filesHtml += `
-					<div class="file-container error">
-						<div class="file-header">
-							<h2 class="file-title">${file.displayTitle}</h2>
-							<div class="file-meta">
-								<span class="file-path">${file.relativePath}</span>
-								<span class="error-text">Error reading file</span>
-							</div>
-						</div>
-					</div>
-				`;
+				processedFiles.push({
+					...file,
+					htmlContent: '<p>Error reading file content</p>',
+					rawContent: '',
+					error: true
+				});
 			}
 		}
 
-		// Create the complete HTML
+		// Create the complete HTML with React
 		const html = `
 			<!DOCTYPE html>
 			<html lang="en">
@@ -704,18 +690,31 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 				<meta charset="UTF-8">
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 				<title>Tag: ${tagInfo.tag}</title>
+				<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+				<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+				<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 				<style>
+					* {
+						margin: 0;
+						padding: 0;
+						box-sizing: border-box;
+					}
 					body {
 						font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 						background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-						margin: 0;
-						padding: 20px;
 						min-height: 100vh;
 						color: #333;
 					}
-					.container {
+					#root {
+						width: 100%;
+						height: 100vh;
+					}
+					.app-container {
+						padding: 20px;
 						max-width: 1200px;
 						margin: 0 auto;
+						height: 100vh;
+						overflow-y: auto;
 					}
 					.header {
 						text-align: center;
@@ -725,6 +724,7 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 						border-radius: 15px;
 						box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 						backdrop-filter: blur(10px);
+						animation: slideInDown 0.6s ease-out;
 					}
 					.header h1 {
 						margin: 0;
@@ -737,34 +737,80 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 						font-size: 1.1em;
 						margin-top: 10px;
 					}
-					.file-container {
-						background: rgba(255, 255, 255, 0.95);
+					.search-container {
 						margin: 20px 0;
+						position: relative;
+					}
+					.search-input {
+						width: 100%;
+						padding: 12px 20px;
+						border: none;
+						border-radius: 25px;
+						font-size: 1em;
+						background: rgba(255, 255, 255, 0.9);
+						box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+						outline: none;
+						transition: all 0.3s ease;
+					}
+					.search-input:focus {
+						background: white;
+						box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+						transform: translateY(-2px);
+					}
+					.files-grid {
+						display: grid;
+						gap: 20px;
+						grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+					}
+					.file-card {
+						background: rgba(255, 255, 255, 0.95);
 						border-radius: 15px;
 						overflow: hidden;
 						box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 						backdrop-filter: blur(10px);
-						transition: transform 0.3s ease, box-shadow 0.3s ease;
+						transition: all 0.3s ease;
+						animation: fadeInUp 0.6s ease-out;
+						cursor: pointer;
 					}
-					.file-container:hover {
-						transform: translateY(-5px);
-						box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+					.file-card:hover {
+						transform: translateY(-10px) scale(1.02);
+						box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
 					}
 					.file-header {
 						background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
 						color: white;
 						padding: 20px;
+						position: relative;
+						overflow: hidden;
+					}
+					.file-header::before {
+						content: '';
+						position: absolute;
+						top: -50%;
+						left: -50%;
+						width: 200%;
+						height: 200%;
+						background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+						transform: rotate(45deg);
+						transition: all 0.5s;
+					}
+					.file-card:hover .file-header::before {
+						animation: shimmer 1s ease-in-out;
 					}
 					.file-title {
 						margin: 0 0 10px 0;
 						font-size: 1.5em;
 						font-weight: 500;
+						z-index: 1;
+						position: relative;
 					}
 					.file-meta {
 						display: flex;
 						justify-content: space-between;
 						align-items: center;
 						opacity: 0.9;
+						z-index: 1;
+						position: relative;
 					}
 					.file-path {
 						font-size: 0.9em;
@@ -779,22 +825,64 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 					.file-content {
 						padding: 30px;
 						line-height: 1.6;
-						font-size: 1.1em;
+						font-size: 1em;
+						max-height: 300px;
+						overflow-y: auto;
+						position: relative;
+					}
+					.expand-btn {
+						position: absolute;
+						bottom: 10px;
+						right: 10px;
+						background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+						color: white;
+						border: none;
+						border-radius: 20px;
+						padding: 8px 16px;
+						cursor: pointer;
+						font-size: 0.9em;
+						transition: all 0.3s ease;
+					}
+					.expand-btn:hover {
+						transform: scale(1.1);
+						box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+					}
+					.expanded {
+						max-height: none;
+					}
+					@keyframes slideInDown {
+						from {
+							transform: translateY(-50px);
+							opacity: 0;
+						}
+						to {
+							transform: translateY(0);
+							opacity: 1;
+						}
+					}
+					@keyframes fadeInUp {
+						from {
+							transform: translateY(30px);
+							opacity: 0;
+						}
+						to {
+							transform: translateY(0);
+							opacity: 1;
+						}
+					}
+					@keyframes shimmer {
+						0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+						100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
 					}
 					.file-content h1, .file-content h2, .file-content h3 {
 						color: #333;
-						margin-top: 20px;
-						margin-bottom: 10px;
-					}
-					.file-content h1 {
-						border-bottom: 2px solid #4ecdc4;
-						padding-bottom: 10px;
+						margin: 15px 0 10px 0;
 					}
 					.file-content code {
 						background: #f8f9fa;
 						padding: 2px 6px;
 						border-radius: 4px;
-						font-family: 'Courier New', monospace;
+						font-family: 'Fira Code', 'Courier New', monospace;
 						color: #e83e8c;
 					}
 					.file-content pre {
@@ -804,89 +892,150 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 						overflow-x: auto;
 						border-left: 4px solid #4ecdc4;
 						margin: 10px 0;
-						font-size: 0.9em;
-					}
-					.file-content pre code {
-						background: none;
-						color: #333;
-						padding: 0;
-						font-family: 'Fira Code', 'Courier New', monospace;
-					}
-					.file-content blockquote {
-						border-left: 4px solid #4ecdc4;
-						margin: 10px 0;
-						padding: 10px 15px;
-						background: rgba(78, 205, 196, 0.1);
-						font-style: italic;
-					}
-					.file-content table {
-						border-collapse: collapse;
-						width: 100%;
-						margin: 15px 0;
-					}
-					.file-content table th,
-					.file-content table td {
-						border: 1px solid #ddd;
-						padding: 8px 12px;
-						text-align: left;
-					}
-					.file-content table th {
-						background: #f8f9fa;
-						font-weight: 600;
-					}
-					.file-content ul, .file-content ol {
-						margin: 10px 0;
-						padding-left: 25px;
-					}
-					.file-content li {
-						margin: 5px 0;
-					}
-					.file-content img {
-						max-width: 100%;
-						height: auto;
-						border-radius: 8px;
-						box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-						margin: 10px 0;
-					}
-					.file-content hr {
-						border: none;
-						height: 2px;
-						background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-						margin: 20px 0;
-						border-radius: 1px;
-					}
-					/* Syntax highlighting classes */
-					.language-javascript .token.keyword { color: #d73a49; }
-					.language-javascript .token.string { color: #032f62; }
-					.language-javascript .token.comment { color: #6a737d; }
-					.language-python .token.keyword { color: #d73a49; }
-					.language-python .token.string { color: #032f62; }
-					.language-css .token.property { color: #005cc5; }
-					.language-css .token.value { color: #e36209; }
-					.file-container.error .file-header {
-						background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
-					}
-					.error-text {
-						color: rgba(255, 255, 255, 0.9);
-						font-style: italic;
-					}
-					a {
-						color: #4ecdc4;
-						text-decoration: none;
-					}
-					a:hover {
-						text-decoration: underline;
 					}
 				</style>
 			</head>
 			<body>
-				<div class="container">
-					<div class="header">
-						<h1>📁 ${tagInfo.tag}</h1>
-						<div class="file-count">${sortedFiles.length} files</div>
-					</div>
-					${filesHtml}
-				</div>
+				<div id="root"></div>
+
+				<script type="text/babel">
+					const { useState, useEffect, useMemo } = React;
+
+					// 文件数据
+					const filesData = ${JSON.stringify(processedFiles)};
+
+					// 文件卡片组件
+					const FileCard = ({ file, index }) => {
+						const [expanded, setExpanded] = useState(false);
+						const [contentLoaded, setContentLoaded] = useState(false);
+
+						useEffect(() => {
+							// 分批加载动画
+							setTimeout(() => setContentLoaded(true), index * 50);
+						}, []);
+
+						const truncatedContent = file.htmlContent && file.htmlContent.length > 800
+							? file.htmlContent.substring(0, 800) + '...'
+							: file.htmlContent || '';
+
+						return (
+							<div
+								className={\`file-card \${contentLoaded ? 'loaded' : ''} \${file.error ? 'error' : ''}\`}
+								style={{
+									animationDelay: \`\${index * 0.05}s\`,
+									opacity: contentLoaded ? 1 : 0,
+									transform: contentLoaded ? 'translateY(0)' : 'translateY(20px)'
+								}}
+							>
+								<div className="file-header">
+									<h2 className="file-title">{file.displayTitle}</h2>
+									<div className="file-meta">
+										<span className="file-path">{file.relativePath}</span>
+										<span className="file-date">{new Date(file.birthtime).toLocaleDateString()}</span>
+									</div>
+								</div>
+								<div className={\`file-content \${expanded ? 'expanded' : ''}\`}>
+									<div dangerouslySetInnerHTML={{
+										__html: expanded ? file.htmlContent : truncatedContent
+									}} />
+									{file.htmlContent && file.htmlContent.length > 800 && (
+										<button
+											className="expand-btn"
+											onClick={() => setExpanded(!expanded)}
+										>
+											{expanded ? '📄 收起' : '📖 展开'}
+										</button>
+									)}
+								</div>
+							</div>
+						);
+					};
+
+					// 主应用组件
+					const App = () => {
+						const [searchTerm, setSearchTerm] = useState('');
+						const [sortBy, setSortBy] = useState('date');
+
+						const filteredFiles = useMemo(() => {
+							let filtered = filesData.filter(file =>
+								file.displayTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+								file.relativePath.toLowerCase().includes(searchTerm.toLowerCase())
+							);
+
+							// 排序
+							switch(sortBy) {
+								case 'date':
+									return filtered.sort((a, b) => new Date(b.birthtime) - new Date(a.birthtime));
+								case 'name':
+									return filtered.sort((a, b) => a.displayTitle.localeCompare(b.displayTitle));
+								case 'path':
+									return filtered.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+								default:
+									return filtered;
+							}
+						}, [searchTerm, sortBy]);
+
+						return (
+							<div className="app-container">
+								<div className="header">
+									<h1>📁 ${tagInfo.tag}</h1>
+									<div className="file-count">{filteredFiles.length} / ${processedFiles.length} files</div>
+								</div>
+
+								<div className="search-container">
+									<input
+										type="text"
+										className="search-input"
+										placeholder="🔍 搜索文件..."
+										value={searchTerm}
+										onChange={(e) => setSearchTerm(e.target.value)}
+									/>
+								</div>
+
+								<div style={{
+									marginBottom: '20px',
+									textAlign: 'center'
+								}}>
+									<select
+										value={sortBy}
+										onChange={(e) => setSortBy(e.target.value)}
+										style={{
+											padding: '8px 16px',
+											borderRadius: '20px',
+											border: 'none',
+											background: 'rgba(255,255,255,0.9)',
+											cursor: 'pointer'
+										}}
+									>
+										<option value="date">按日期排序</option>
+										<option value="name">按标题排序</option>
+										<option value="path">按路径排序</option>
+									</select>
+								</div>
+
+								<div className="files-grid">
+									{filteredFiles.map((file, index) => (
+										<FileCard key={file.path} file={file} index={index} />
+									))}
+								</div>
+
+								{filteredFiles.length === 0 && (
+									<div style={{
+										textAlign: 'center',
+										padding: '50px',
+										color: 'rgba(255,255,255,0.8)',
+										fontSize: '1.2em'
+									}}>
+										🔍 没有找到匹配的文件
+									</div>
+								)}
+							</div>
+						);
+					};
+
+					// 渲染应用
+					ReactDOM.render(<App />, document.getElementById('root'));
+				</script>
 			</body>
 			</html>
 		`;
