@@ -16,6 +16,10 @@
       {
         "command": "memento.helloWorld",
         "title": "Hello World"
+      },
+      {
+        "command": "memento.listMdFiles",
+        "title": "List Markdown Files by Creation Time"
       }
     ]
   },
