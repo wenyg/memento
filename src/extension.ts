@@ -618,262 +618,91 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 				<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
 				<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
 				<style>
-					* {
-						margin: 0;
-						padding: 0;
-						box-sizing: border-box;
-					}
 					body {
 						font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-						background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-						min-height: 100vh;
-						color: #333;
-					}
-					#root {
-						width: 100%;
-						height: 100vh;
-					}
-					.app-container {
+						background: white;
+						margin: 0;
 						padding: 20px;
-						max-width: 1200px;
+						color: #333;
+						line-height: 1.6;
+					}
+					.container {
+						max-width: 800px;
 						margin: 0 auto;
-						height: 100vh;
-						overflow-y: auto;
 					}
 					.header {
-						text-align: center;
 						margin-bottom: 30px;
-						background: rgba(255, 255, 255, 0.95);
-						padding: 20px;
-						border-radius: 15px;
-						box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-						backdrop-filter: blur(10px);
-						animation: slideInDown 0.6s ease-out;
+						text-align: center;
 					}
 					.header h1 {
 						margin: 0;
+						font-size: 2em;
 						color: #333;
-						font-size: 2.5em;
-						font-weight: 300;
 					}
 					.file-count {
 						color: #666;
-						font-size: 1.1em;
 						margin-top: 10px;
 					}
-					.search-container {
-						margin: 20px 0;
-						position: relative;
-					}
-					.search-input {
-						width: 100%;
-						padding: 12px 20px;
+					.file-separator {
 						border: none;
-						border-radius: 25px;
-						font-size: 1em;
-						background: rgba(255, 255, 255, 0.9);
-						box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-						outline: none;
-						transition: all 0.3s ease;
-					}
-					.search-input:focus {
-						background: white;
-						box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-						transform: translateY(-2px);
-					}
-					.files-grid {
-						display: grid;
-						gap: 20px;
-						grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-					}
-					.file-card {
-						background: rgba(255, 255, 255, 0.95);
-						border-radius: 15px;
-						overflow: hidden;
-						box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-						backdrop-filter: blur(10px);
-						transition: all 0.3s ease;
-						animation: fadeInUp 0.6s ease-out;
-						cursor: pointer;
-					}
-					.file-card:hover {
-						transform: translateY(-10px) scale(1.02);
-						box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
-					}
-					.file-header {
-						background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-						color: white;
-						padding: 20px;
-						position: relative;
-						overflow: hidden;
-					}
-					.file-header::before {
-						content: '';
-						position: absolute;
-						top: -50%;
-						left: -50%;
-						width: 200%;
-						height: 200%;
-						background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
-						transform: rotate(45deg);
-						transition: all 0.5s;
-					}
-					.file-card:hover .file-header::before {
-						animation: shimmer 1s ease-in-out;
+						border-top: 1px solid #ccc;
+						margin: 40px 0;
 					}
 					.file-title {
-						margin: 0 0 10px 0;
 						font-size: 1.5em;
-						font-weight: 500;
-						z-index: 1;
-						position: relative;
+						font-weight: 600;
+						margin: 20px 0 10px 0;
+						color: #333;
 					}
 					.file-meta {
-						display: flex;
-						justify-content: space-between;
-						align-items: center;
-						opacity: 0.9;
-						z-index: 1;
-						position: relative;
-					}
-					.file-path {
+						color: #666;
 						font-size: 0.9em;
-						font-family: 'Courier New', monospace;
-						background: rgba(255, 255, 255, 0.2);
-						padding: 4px 8px;
-						border-radius: 4px;
+						margin-bottom: 20px;
+						font-family: monospace;
 					}
-					.file-date {
-						font-size: 0.9em;
+					.markdown-content {
+						margin-bottom: 20px;
 					}
-					.file-content {
-						padding: 30px;
-						line-height: 1.6;
-						font-size: 1em;
-						max-height: 300px;
-						overflow-y: auto;
-						position: relative;
+					.markdown-content h1, .markdown-content h2, .markdown-content h3 {
+						margin-top: 20px;
+						margin-bottom: 10px;
 					}
-					.expand-btn {
-						position: absolute;
-						bottom: 10px;
-						right: 10px;
-						background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-						color: white;
-						border: none;
-						border-radius: 20px;
-						padding: 8px 16px;
-						cursor: pointer;
-						font-size: 0.9em;
-						transition: all 0.3s ease;
-					}
-					.expand-btn:hover {
-						transform: scale(1.1);
-						box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-					}
-					.expanded {
-						max-height: none;
-					}
-					@keyframes slideInDown {
-						from {
-							transform: translateY(-50px);
-							opacity: 0;
-						}
-						to {
-							transform: translateY(0);
-							opacity: 1;
-						}
-					}
-					@keyframes fadeInUp {
-						from {
-							transform: translateY(30px);
-							opacity: 0;
-						}
-						to {
-							transform: translateY(0);
-							opacity: 1;
-						}
-					}
-					@keyframes shimmer {
-						0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
-						100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
-					}
-					.file-content h1, .file-content h2, .file-content h3 {
-						color: #333;
-						margin: 15px 0 10px 0;
-					}
-					.file-content code {
+					.markdown-content pre {
 						background: #f8f9fa;
-						padding: 2px 6px;
-						border-radius: 4px;
-						font-family: 'Fira Code', 'Courier New', monospace;
-						color: #e83e8c;
-					}
-					.file-content pre {
-						background: #f8f9fa !important;
 						padding: 15px;
-						border-radius: 8px;
+						border-radius: 5px;
 						overflow-x: auto;
-						border-left: 4px solid #4ecdc4;
-						margin: 10px 0;
-						position: relative;
 					}
-					.file-content pre code {
-						background: transparent !important;
+					.markdown-content code {
+						background: #f8f9fa;
+						padding: 2px 4px;
+						border-radius: 3px;
+						font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+					}
+					.markdown-content pre code {
+						background: transparent;
 						padding: 0;
-						border-radius: 0;
-						font-family: 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Courier New', monospace;
-						line-height: 1.5;
 					}
-					.file-content .hljs {
-						background: #f8f9fa !important;
-						color: #333 !important;
+					.markdown-content blockquote {
+						border-left: 4px solid #ddd;
+						margin: 0;
+						padding: 0 15px;
+						color: #666;
 					}
-					.file-content blockquote {
-						border-left: 4px solid #4ecdc4;
-						margin: 15px 0;
-						padding: 10px 20px;
-						background: rgba(78, 205, 196, 0.1);
-						border-radius: 0 8px 8px 0;
-						font-style: italic;
-					}
-					.file-content table {
+					.markdown-content table {
 						border-collapse: collapse;
 						width: 100%;
 						margin: 15px 0;
-						border-radius: 8px;
-						overflow: hidden;
-						box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 					}
-					.file-content table th,
-					.file-content table td {
-						border: 1px solid #e1e4e8;
-						padding: 12px 16px;
+					.markdown-content table th,
+					.markdown-content table td {
+						border: 1px solid #ddd;
+						padding: 8px 12px;
 						text-align: left;
 					}
-					.file-content table th {
-						background: linear-gradient(45deg, #667eea, #764ba2);
-						color: white;
+					.markdown-content table th {
+						background: #f8f9fa;
 						font-weight: 600;
-					}
-					.file-content table tbody tr:nth-child(even) {
-						background: rgba(102, 126, 234, 0.05);
-					}
-					.file-content ul, .file-content ol {
-						margin: 15px 0;
-						padding-left: 30px;
-					}
-					.file-content li {
-						margin: 8px 0;
-						line-height: 1.6;
-					}
-					.file-content img {
-						max-width: 100%;
-						height: auto;
-						border-radius: 8px;
-						box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-						margin: 15px 0;
-						display: block;
 					}
 				</style>
 			</head>
@@ -881,7 +710,7 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 				<div id="root"></div>
 
 				<script type="text/babel">
-					const { useState, useEffect, useMemo } = React;
+					const { useState, useEffect } = React;
 
 					// 配置 marked
 					marked.setOptions({
@@ -904,23 +733,13 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 					const filesData = ${JSON.stringify(processedFiles)};
 
 					// Markdown 渲染组件
-					const MarkdownRenderer = ({ content, truncate = false, maxLength = 1000 }) => {
+					const MarkdownRenderer = ({ content }) => {
 						const [htmlContent, setHtmlContent] = useState('');
 
 						useEffect(() => {
 							if (content && content !== 'Error reading file content') {
 								try {
-									let contentToRender = content;
-									if (truncate && content.length > maxLength) {
-										// 智能截断：在完整段落处截断
-										const truncated = content.substring(0, maxLength);
-										const lastNewline = truncated.lastIndexOf('\\n\\n');
-										contentToRender = lastNewline > maxLength * 0.7
-											? truncated.substring(0, lastNewline) + '\\n\\n...'
-											: truncated + '...';
-									}
-
-									const html = marked.parse(contentToRender);
+									const html = marked.parse(content);
 									setHtmlContent(html);
 
 									// 高亮代码块
@@ -938,136 +757,30 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 							} else {
 								setHtmlContent('<p>Error reading file content</p>');
 							}
-						}, [content, truncate, maxLength]);
+						}, [content]);
 
-						return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
-					};
-
-					// 文件卡片组件
-					const FileCard = ({ file, index }) => {
-						const [expanded, setExpanded] = useState(false);
-						const [contentLoaded, setContentLoaded] = useState(false);
-
-						useEffect(() => {
-							// 分批加载动画
-							setTimeout(() => setContentLoaded(true), index * 50);
-						}, []);
-
-						const shouldTruncate = file.rawContent && file.rawContent.length > 1000;
-
-						return (
-							<div
-								className={\`file-card \${contentLoaded ? 'loaded' : ''} \${file.error ? 'error' : ''}\`}
-								style={{
-									animationDelay: \`\${index * 0.05}s\`,
-									opacity: contentLoaded ? 1 : 0,
-									transform: contentLoaded ? 'translateY(0)' : 'translateY(20px)'
-								}}
-							>
-								<div className="file-header">
-									<h2 className="file-title">{file.displayTitle}</h2>
-									<div className="file-meta">
-										<span className="file-path">{file.relativePath}</span>
-										<span className="file-date">{new Date(file.birthtime).toLocaleDateString()}</span>
-									</div>
-								</div>
-								<div className={\`file-content \${expanded ? 'expanded' : ''}\`}>
-									<MarkdownRenderer
-										content={file.rawContent}
-										truncate={!expanded && shouldTruncate}
-										maxLength={1000}
-									/>
-									{shouldTruncate && (
-										<button
-											className="expand-btn"
-											onClick={() => setExpanded(!expanded)}
-										>
-											{expanded ? '📄 收起' : '📖 展开'}
-										</button>
-									)}
-								</div>
-							</div>
-						);
+						return <div className="markdown-content" dangerouslySetInnerHTML={{ __html: htmlContent }} />;
 					};
 
 					// 主应用组件
 					const App = () => {
-						const [searchTerm, setSearchTerm] = useState('');
-						const [sortBy, setSortBy] = useState('date');
-
-						const filteredFiles = useMemo(() => {
-							let filtered = filesData.filter(file =>
-								file.displayTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-								file.relativePath.toLowerCase().includes(searchTerm.toLowerCase())
-							);
-
-							// 排序
-							switch(sortBy) {
-								case 'date':
-									return filtered.sort((a, b) => new Date(b.birthtime) - new Date(a.birthtime));
-								case 'name':
-									return filtered.sort((a, b) => a.displayTitle.localeCompare(b.displayTitle));
-								case 'path':
-									return filtered.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
-								default:
-									return filtered;
-							}
-						}, [searchTerm, sortBy]);
-
 						return (
-							<div className="app-container">
+							<div className="container">
 								<div className="header">
-									<h1>📁 ${tagInfo.tag}</h1>
-									<div className="file-count">{filteredFiles.length} / ${processedFiles.length} files</div>
+									<h1>${tagInfo.tag}</h1>
+									<div className="file-count">{filesData.length} files</div>
 								</div>
 
-								<div className="search-container">
-									<input
-										type="text"
-										className="search-input"
-										placeholder="🔍 搜索文件..."
-										value={searchTerm}
-										onChange={(e) => setSearchTerm(e.target.value)}
-									/>
-								</div>
-
-								<div style={{
-									marginBottom: '20px',
-									textAlign: 'center'
-								}}>
-									<select
-										value={sortBy}
-										onChange={(e) => setSortBy(e.target.value)}
-										style={{
-											padding: '8px 16px',
-											borderRadius: '20px',
-											border: 'none',
-											background: 'rgba(255,255,255,0.9)',
-											cursor: 'pointer'
-										}}
-									>
-										<option value="date">按日期排序</option>
-										<option value="name">按标题排序</option>
-										<option value="path">按路径排序</option>
-									</select>
-								</div>
-
-								<div className="files-grid">
-									{filteredFiles.map((file, index) => (
-										<FileCard key={file.path} file={file} index={index} />
-									))}
-								</div>
-
-								{filteredFiles.length === 0 && (
-									<div style={{
-										textAlign: 'center',
-										padding: '50px',
-										color: 'rgba(255,255,255,0.8)',
-										fontSize: '1.2em'
-									}}>
-										🔍 没有找到匹配的文件
+								{filesData.map((file, index) => (
+									<div key={file.path}>
+										{index > 0 && <hr className="file-separator" />}
+										<div className="file-title">{file.displayTitle}</div>
+										<div className="file-meta">
+											{file.relativePath} • {new Date(file.birthtime).toLocaleDateString()}
+										</div>
+										<MarkdownRenderer content={file.rawContent} />
 									</div>
-								)}
+								))}
 							</div>
 						);
 					};
