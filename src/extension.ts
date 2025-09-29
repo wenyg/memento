@@ -575,6 +575,23 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 			tagFilesPanel.onDidDispose(() => {
 				tagFilesPanel = undefined;
 			});
+
+			// Handle messages from the webview
+			tagFilesPanel.webview.onDidReceiveMessage(
+				async (message) => {
+					switch (message.command) {
+						case 'editFile':
+							try {
+								const fileUri = vscode.Uri.file(message.path);
+								await vscode.window.showTextDocument(fileUri);
+							} catch (error) {
+								console.error('Error opening file:', error);
+								vscode.window.showErrorMessage(`Failed to open file: ${message.path}`);
+							}
+							break;
+					}
+				}
+			);
 		}
 
 		// Update the panel title and reveal it
@@ -648,11 +665,31 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 						border-top: 1px solid #ccc;
 						margin: 40px 0;
 					}
+					.file-header {
+						display: flex;
+						justify-content: space-between;
+						align-items: center;
+						margin: 20px 0 10px 0;
+					}
 					.file-title {
 						font-size: 1.5em;
 						font-weight: 600;
-						margin: 20px 0 10px 0;
 						color: #333;
+						margin: 0;
+					}
+					.edit-btn {
+						background: #007acc;
+						color: white;
+						border: none;
+						padding: 6px 12px;
+						border-radius: 4px;
+						cursor: pointer;
+						font-size: 0.8em;
+						font-weight: 500;
+						transition: background-color 0.2s;
+					}
+					.edit-btn:hover {
+						background: #005a9e;
 					}
 					.file-meta {
 						color: #666;
@@ -762,6 +799,18 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 						return <div className="markdown-content" dangerouslySetInnerHTML={{ __html: htmlContent }} />;
 					};
 
+					// 编辑函数
+					const handleEditFile = (filePath) => {
+						// 通过 VSCode API 打开文件编辑器
+						if (window.acquireVsCodeApi) {
+							const vscode = window.acquireVsCodeApi();
+							vscode.postMessage({
+								command: 'editFile',
+								path: filePath
+							});
+						}
+					};
+
 					// 主应用组件
 					const App = () => {
 						return (
@@ -774,7 +823,16 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 								{filesData.map((file, index) => (
 									<div key={file.path}>
 										{index > 0 && <hr className="file-separator" />}
-										<div className="file-title">{file.displayTitle}</div>
+										<div className="file-header">
+											<div className="file-title">{file.displayTitle}</div>
+											<button
+												className="edit-btn"
+												onClick={() => handleEditFile(file.path)}
+												title="在编辑器中打开此文件"
+											>
+												✏️ 编辑
+											</button>
+										</div>
 										<div className="file-meta">
 											{file.relativePath} • {new Date(file.birthtime).toLocaleDateString()}
 										</div>
