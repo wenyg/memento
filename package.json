@@ -20,8 +20,40 @@
       {
         "command": "memento.listMdFiles",
         "title": "List Markdown Files by Creation Time"
+      },
+      {
+        "command": "memento.refreshMdFiles",
+        "title": "Refresh",
+        "icon": "$(refresh)"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "memento-explorer",
+          "title": "Memento",
+          "icon": "$(notebook)"
+        }
+      ]
+    },
+    "views": {
+      "memento-explorer": [
+        {
+          "id": "mdFilesList",
+          "name": "Markdown Files",
+          "when": "workspaceFolderCount > 0"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "memento.refreshMdFiles",
+          "when": "view == mdFilesList",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

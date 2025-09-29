@@ -4,13 +4,108 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
+interface MdFileInfo {
+	path: string;
+	birthtime: Date;
+	relativePath: string;
+}
+
+class MdFileItem extends vscode.TreeItem {
+	constructor(
+		public readonly fileInfo: MdFileInfo,
+		public readonly collapsibleState: vscode.TreeItemCollapsibleState
+	) {
+		super(fileInfo.relativePath, collapsibleState);
+		this.tooltip = `${this.fileInfo.relativePath}\nCreated: ${this.fileInfo.birthtime.toLocaleString()}`;
+		this.description = this.fileInfo.birthtime.toLocaleDateString();
+		this.resourceUri = vscode.Uri.file(this.fileInfo.path);
+		this.command = {
+			command: 'vscode.open',
+			title: 'Open File',
+			arguments: [this.resourceUri]
+		};
+		this.contextValue = 'mdFile';
+		this.iconPath = new vscode.ThemeIcon('markdown');
+	}
+}
+
+class MdFilesProvider implements vscode.TreeDataProvider<MdFileItem> {
+	private _onDidChangeTreeData: vscode.EventEmitter<MdFileItem | undefined | null | void> = new vscode.EventEmitter<MdFileItem | undefined | null | void>();
+	readonly onDidChangeTreeData: vscode.Event<MdFileItem | undefined | null | void> = this._onDidChangeTreeData.event;
+
+	private mdFiles: MdFileInfo[] = [];
+
+	constructor() {
+		this.refresh();
+	}
+
+	refresh(): void {
+		console.log('MdFilesProvider: Refreshing tree data');
+		this._loadMarkdownFiles().then(() => {
+			this._onDidChangeTreeData.fire();
+		});
+	}
+
+	getTreeItem(element: MdFileItem): vscode.TreeItem {
+		return element;
+	}
+
+	getChildren(element?: MdFileItem): Thenable<MdFileItem[]> {
+		if (!element) {
+			// Root level - return all markdown files
+			return Promise.resolve(
+				this.mdFiles.map(fileInfo =>
+					new MdFileItem(fileInfo, vscode.TreeItemCollapsibleState.None)
+				)
+			);
+		}
+		return Promise.resolve([]);
+	}
+
+	private async _loadMarkdownFiles(): Promise<void> {
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (!workspaceFolders) {
+			console.log('MdFilesProvider: No workspace folders');
+			this.mdFiles = [];
+			return;
+		}
+
+		try {
+			const rootPath = workspaceFolders[0].uri.fsPath;
+			console.log('MdFilesProvider: Searching in:', rootPath);
+			const mdFiles = await findMarkdownFiles(rootPath);
+			console.log('MdFilesProvider: Found files:', mdFiles.length);
+
+			// Sort by creation time (oldest first)
+			this.mdFiles = mdFiles.sort((a, b) => a.birthtime.getTime() - b.birthtime.getTime());
+			console.log('MdFilesProvider: Files loaded and sorted');
+		} catch (error) {
+			console.error('MdFilesProvider: Error loading files:', error);
+			this.mdFiles = [];
+		}
+	}
+}
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "memento" is now active!');
+	console.log('Memento extension is now active!');
+
+	// Create the tree data provider
+	const treeProvider = new MdFilesProvider();
+
+	// Register the tree data provider
+	context.subscriptions.push(
+		vscode.window.createTreeView('mdFilesList', {
+			treeDataProvider: treeProvider,
+			showCollapseAll: true
+		})
+	);
+
+	console.log('Tree view registered for mdFilesList');
 
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with registerCommand
@@ -23,58 +118,20 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(disposable);
 
-	// Register the listMdFiles command
+	// Register the listMdFiles command (now just shows a message)
 	const listMdFilesDisposable = vscode.commands.registerCommand('memento.listMdFiles', async () => {
-		const workspaceFolders = vscode.workspace.workspaceFolders;
-		if (!workspaceFolders) {
-			vscode.window.showErrorMessage('No workspace folder is open');
-			return;
-		}
-
-		const rootPath = workspaceFolders[0].uri.fsPath;
-
-		try {
-			const mdFiles = await findMarkdownFiles(rootPath);
-			const sortedFiles = mdFiles.sort((a, b) => a.birthtime.getTime() - b.birthtime.getTime());
-
-			if (sortedFiles.length === 0) {
-				vscode.window.showInformationMessage('No markdown files found in the workspace');
-				return;
-			}
-
-			// Create and show HTML panel
-			const panel = vscode.window.createWebviewPanel(
-				'mdFilesList',
-				'Markdown Files by Creation Time',
-				vscode.ViewColumn.One,
-				{
-					enableScripts: true,
-					localResourceRoots: []
-				}
-			);
-
-			panel.webview.html = getWebviewContent(sortedFiles);
-
-			// Handle messages from the webview
-			panel.webview.onDidReceiveMessage(
-				message => {
-					switch (message.command) {
-						case 'openFile':
-							vscode.workspace.openTextDocument(message.path).then(doc => {
-								vscode.window.showTextDocument(doc);
-							});
-							return;
-					}
-				},
-				undefined,
-				context.subscriptions
-			);
-		} catch (error) {
-			vscode.window.showErrorMessage(`Error listing markdown files: ${error}`);
-		}
+		vscode.window.showInformationMessage('Use the Memento sidebar to view markdown files!');
 	});
 
 	context.subscriptions.push(listMdFilesDisposable);
+
+	// Register refresh command
+	const refreshDisposable = vscode.commands.registerCommand('memento.refreshMdFiles', () => {
+		console.log('Refresh command triggered');
+		treeProvider.refresh();
+	});
+
+	context.subscriptions.push(refreshDisposable);
 }
 
 async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birthtime: Date, relativePath: string}>> {
@@ -107,126 +164,7 @@ async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birt
 	return mdFiles;
 }
 
-function getWebviewContent(files: Array<{path: string, birthtime: Date, relativePath: string}>): string {
-	const fileRows = files.map((file, index) => {
-		const date = file.birthtime.toLocaleString();
-		const encodedPath = encodeURIComponent(file.path);
-		return `
-			<tr>
-				<td>${index + 1}</td>
-				<td>
-					<a href="#" onclick="openFile('${encodedPath}')" class="file-link">
-						${file.relativePath}
-					</a>
-				</td>
-				<td>${date}</td>
-			</tr>
-		`;
-	}).join('');
 
-	return `<!DOCTYPE html>
-<html lang="en">
-<head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Markdown Files</title>
-	<style>
-		body {
-			font-family: var(--vscode-font-family);
-			color: var(--vscode-foreground);
-			background-color: var(--vscode-editor-background);
-			margin: 20px;
-		}
-
-		h1 {
-			color: var(--vscode-foreground);
-			border-bottom: 1px solid var(--vscode-textSeparator-foreground);
-			padding-bottom: 10px;
-		}
-
-		.summary {
-			margin: 20px 0;
-			padding: 15px;
-			background-color: var(--vscode-editor-inactiveSelectionBackground);
-			border-radius: 5px;
-		}
-
-		table {
-			width: 100%;
-			border-collapse: collapse;
-			margin-top: 20px;
-		}
-
-		th, td {
-			text-align: left;
-			padding: 12px;
-			border-bottom: 1px solid var(--vscode-textSeparator-foreground);
-		}
-
-		th {
-			background-color: var(--vscode-editor-selectionBackground);
-			font-weight: bold;
-		}
-
-		tr:hover {
-			background-color: var(--vscode-list-hoverBackground);
-		}
-
-		.file-link {
-			color: var(--vscode-textLink-foreground);
-			text-decoration: none;
-			cursor: pointer;
-		}
-
-		.file-link:hover {
-			color: var(--vscode-textLink-activeForeground);
-			text-decoration: underline;
-		}
-
-		.index {
-			width: 50px;
-			text-align: center;
-		}
-
-		.created {
-			width: 200px;
-		}
-	</style>
-</head>
-<body>
-	<h1>📝 Markdown Files by Creation Time</h1>
-
-	<div class="summary">
-		<strong>Found ${files.length} markdown files</strong> in the workspace, sorted by creation time (oldest first).
-	</div>
-
-	<table>
-		<thead>
-			<tr>
-				<th class="index">#</th>
-				<th>File Path</th>
-				<th class="created">Created</th>
-			</tr>
-		</thead>
-		<tbody>
-			${fileRows}
-		</tbody>
-	</table>
-
-	<script>
-		const vscode = acquireVsCodeApi();
-
-		function openFile(encodedPath) {
-			const filePath = decodeURIComponent(encodedPath);
-			vscode.postMessage({
-				command: 'openFile',
-				path: filePath
-			});
-		}
-	</script>
-</body>
-</html>`;
-}
 
 // This method is called when your extension is deactivated
 export function deactivate() {}
