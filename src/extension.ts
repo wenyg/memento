@@ -411,8 +411,9 @@ async function extractTagsFromFile(filePath: string): Promise<string[]> {
 		const content = await fs.promises.readFile(filePath, 'utf-8');
 		const tags: string[] = [];
 
-		// Match #tag or #level1/level2 patterns
-		const tagRegex = /#([a-zA-Z0-9_\-\/]+)/g;
+		// Match #tag or #level1/level2 patterns, supporting Chinese characters
+		// \p{L} matches any Unicode letter (including Chinese), \p{N} matches any Unicode number
+		const tagRegex = /#([\p{L}\p{N}_\-\/]+)/gu;
 		let match;
 
 		while ((match = tagRegex.exec(content)) !== null) {
