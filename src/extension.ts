@@ -8,6 +8,13 @@ interface MdFileInfo {
 	path: string;
 	birthtime: Date;
 	relativePath: string;
+	tags?: string[];
+}
+
+interface TagInfo {
+	tag: string;
+	files: MdFileInfo[];
+	children?: TagInfo[];
 }
 
 class MdFileItem extends vscode.TreeItem {
@@ -26,6 +33,39 @@ class MdFileItem extends vscode.TreeItem {
 		};
 		this.contextValue = 'mdFile';
 		this.iconPath = new vscode.ThemeIcon('markdown');
+	}
+}
+
+class TagItem extends vscode.TreeItem {
+	constructor(
+		public readonly tagInfo: TagInfo,
+		public readonly collapsibleState: vscode.TreeItemCollapsibleState,
+		public readonly isFile: boolean = false,
+		public readonly fileInfo?: MdFileInfo
+	) {
+		// Call super constructor first
+		super(
+			isFile && fileInfo ? fileInfo.relativePath : tagInfo.tag,
+			collapsibleState
+		);
+
+		if (isFile && fileInfo) {
+			this.tooltip = `${fileInfo.relativePath}\nCreated: ${fileInfo.birthtime.toLocaleString()}`;
+			this.description = fileInfo.birthtime.toLocaleDateString();
+			this.resourceUri = vscode.Uri.file(fileInfo.path);
+			this.command = {
+				command: 'vscode.open',
+				title: 'Open File',
+				arguments: [this.resourceUri]
+			};
+			this.contextValue = 'mdFile';
+			this.iconPath = new vscode.ThemeIcon('markdown');
+		} else {
+			this.tooltip = `Tag: ${tagInfo.tag} (${tagInfo.files.length} files)`;
+			this.description = `${tagInfo.files.length} files`;
+			this.contextValue = 'tag';
+			this.iconPath = new vscode.ThemeIcon('tag');
+		}
 	}
 }
 
@@ -86,6 +126,162 @@ class MdFilesProvider implements vscode.TreeDataProvider<MdFileItem> {
 	}
 }
 
+class TagTreeProvider implements vscode.TreeDataProvider<TagItem> {
+	private _onDidChangeTreeData: vscode.EventEmitter<TagItem | undefined | null | void> = new vscode.EventEmitter<TagItem | undefined | null | void>();
+	readonly onDidChangeTreeData: vscode.Event<TagItem | undefined | null | void> = this._onDidChangeTreeData.event;
+
+	private tagTree: TagInfo[] = [];
+	private mdFiles: MdFileInfo[] = [];
+
+	constructor() {
+		this.refresh();
+	}
+
+	refresh(): void {
+		console.log('TagTreeProvider: Refreshing tree data');
+		this._loadMarkdownFiles().then(() => {
+			this.buildTagTree();
+			this._onDidChangeTreeData.fire();
+		});
+	}
+
+	getTreeItem(element: TagItem): vscode.TreeItem {
+		return element;
+	}
+
+	getChildren(element?: TagItem): Thenable<TagItem[]> {
+		if (!element) {
+			// Root level - return tag hierarchy
+			return Promise.resolve(
+				this.tagTree.map(tagInfo => {
+					const hasChildren = (tagInfo.children && tagInfo.children.length > 0) || tagInfo.files.length > 0;
+					return new TagItem(
+						tagInfo,
+						hasChildren ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None
+					);
+				})
+			);
+		} else if (!element.isFile) {
+			// Tag level - return children tags and files
+			const items: TagItem[] = [];
+
+			// Add child tags first
+			if (element.tagInfo.children) {
+				items.push(...element.tagInfo.children.map(childTagInfo => {
+					const hasChildren = (childTagInfo.children && childTagInfo.children.length > 0) || childTagInfo.files.length > 0;
+					return new TagItem(
+						childTagInfo,
+						hasChildren ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None
+					);
+				}));
+			}
+
+			// Add files
+			items.push(...element.tagInfo.files.map(fileInfo =>
+				new TagItem(
+					element.tagInfo,
+					vscode.TreeItemCollapsibleState.None,
+					true,
+					fileInfo
+				)
+			));
+
+			return Promise.resolve(items);
+		}
+
+		return Promise.resolve([]);
+	}
+
+	private async _loadMarkdownFiles(): Promise<void> {
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		if (!workspaceFolders) {
+			console.log('TagTreeProvider: No workspace folders');
+			this.mdFiles = [];
+			return;
+		}
+
+		try {
+			const rootPath = workspaceFolders[0].uri.fsPath;
+			console.log('TagTreeProvider: Searching in:', rootPath);
+			const mdFiles = await findMarkdownFilesWithTags(rootPath);
+			console.log('TagTreeProvider: Found files:', mdFiles.length);
+
+			this.mdFiles = mdFiles;
+			console.log('TagTreeProvider: Files loaded');
+		} catch (error) {
+			console.error('TagTreeProvider: Error loading files:', error);
+			this.mdFiles = [];
+		}
+	}
+
+	private buildTagTree(): void {
+		const tagMap = new Map<string, TagInfo>();
+
+		// Process all files and their tags
+		for (const file of this.mdFiles) {
+			if (!file.tags || file.tags.length === 0) {
+				continue;
+			}
+
+			for (const tag of file.tags) {
+				this.addTagToTree(tag, file, tagMap);
+			}
+		}
+
+		// Convert map to tree structure
+		this.tagTree = Array.from(tagMap.values()).filter(tagInfo => !tagInfo.tag.includes('/'));
+
+		// Sort tags alphabetically
+		this.sortTagTree(this.tagTree);
+	}
+
+	private addTagToTree(tag: string, file: MdFileInfo, tagMap: Map<string, TagInfo>): void {
+		const parts = tag.split('/');
+		let currentPath = '';
+
+		for (let i = 0; i < parts.length; i++) {
+			const part = parts[i];
+			const parentPath = currentPath;
+			currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+			if (!tagMap.has(currentPath)) {
+				tagMap.set(currentPath, {
+					tag: part,
+					files: [],
+					children: []
+				});
+			}
+
+			const tagInfo = tagMap.get(currentPath)!;
+
+			// Add file to the deepest level tag
+			if (i === parts.length - 1) {
+				if (!tagInfo.files.some(f => f.path === file.path)) {
+					tagInfo.files.push(file);
+				}
+			}
+
+			// Link parent-child relationships
+			if (parentPath) {
+				const parentTagInfo = tagMap.get(parentPath)!;
+				if (!parentTagInfo.children!.some(child => child.tag === part)) {
+					parentTagInfo.children!.push(tagInfo);
+				}
+			}
+		}
+	}
+
+	private sortTagTree(tagTree: TagInfo[]): void {
+		tagTree.sort((a, b) => a.tag.localeCompare(b.tag));
+		for (const tagInfo of tagTree) {
+			if (tagInfo.children) {
+				this.sortTagTree(tagInfo.children);
+			}
+			tagInfo.files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+		}
+	}
+}
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
@@ -94,10 +290,11 @@ export function activate(context: vscode.ExtensionContext) {
 	// This line of code will only be executed once when your extension is activated
 	console.log('Memento extension is now active!');
 
-	// Create the tree data provider
+	// Create the tree data providers
 	const treeProvider = new MdFilesProvider();
+	const tagTreeProvider = new TagTreeProvider();
 
-	// Register the tree data provider
+	// Register the tree data providers
 	context.subscriptions.push(
 		vscode.window.createTreeView('mdFilesList', {
 			treeDataProvider: treeProvider,
@@ -105,7 +302,14 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
-	console.log('Tree view registered for mdFilesList');
+	context.subscriptions.push(
+		vscode.window.createTreeView('tagFilesList', {
+			treeDataProvider: tagTreeProvider,
+			showCollapseAll: true
+		})
+	);
+
+	console.log('Tree views registered for mdFilesList and tagFilesList');
 
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with registerCommand
@@ -125,13 +329,19 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(listMdFilesDisposable);
 
-	// Register refresh command
+	// Register refresh commands
 	const refreshDisposable = vscode.commands.registerCommand('memento.refreshMdFiles', () => {
-		console.log('Refresh command triggered');
+		console.log('Refresh MD files command triggered');
 		treeProvider.refresh();
 	});
 
+	const refreshTagDisposable = vscode.commands.registerCommand('memento.refreshTagFiles', () => {
+		console.log('Refresh tag files command triggered');
+		tagTreeProvider.refresh();
+	});
+
 	context.subscriptions.push(refreshDisposable);
+	context.subscriptions.push(refreshTagDisposable);
 }
 
 async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birthtime: Date, relativePath: string}>> {
@@ -162,6 +372,61 @@ async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birt
 
 	await scanDirectory(dir, dir);
 	return mdFiles;
+}
+
+async function findMarkdownFilesWithTags(dir: string): Promise<MdFileInfo[]> {
+	const mdFiles: MdFileInfo[] = [];
+
+	async function scanDirectory(currentDir: string, rootDir: string) {
+		const items = await fs.promises.readdir(currentDir);
+
+		for (const item of items) {
+			const itemPath = path.join(currentDir, item);
+			const stats = await fs.promises.stat(itemPath);
+
+			if (stats.isDirectory()) {
+				// Skip node_modules and .git directories
+				if (item !== 'node_modules' && item !== '.git' && !item.startsWith('.')) {
+					await scanDirectory(itemPath, rootDir);
+				}
+			} else if (stats.isFile() && path.extname(item).toLowerCase() === '.md') {
+				const relativePath = path.relative(rootDir, itemPath);
+				const tags = await extractTagsFromFile(itemPath);
+				mdFiles.push({
+					path: itemPath,
+					birthtime: stats.birthtime,
+					relativePath: relativePath,
+					tags: tags
+				});
+			}
+		}
+	}
+
+	await scanDirectory(dir, dir);
+	return mdFiles;
+}
+
+async function extractTagsFromFile(filePath: string): Promise<string[]> {
+	try {
+		const content = await fs.promises.readFile(filePath, 'utf-8');
+		const tags: string[] = [];
+
+		// Match #tag or #level1/level2 patterns
+		const tagRegex = /#([a-zA-Z0-9_\-\/]+)/g;
+		let match;
+
+		while ((match = tagRegex.exec(content)) !== null) {
+			const tag = match[1];
+			if (!tags.includes(tag)) {
+				tags.push(tag);
+			}
+		}
+
+		return tags;
+	} catch (error) {
+		console.error(`Error reading file ${filePath}:`, error);
+		return [];
+	}
 }
 
 

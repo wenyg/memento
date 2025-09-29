@@ -25,6 +25,11 @@
         "command": "memento.refreshMdFiles",
         "title": "Refresh",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "memento.refreshTagFiles",
+        "title": "Refresh",
+        "icon": "$(refresh)"
       }
     ],
     "viewsContainers": {
@@ -42,6 +47,11 @@
           "id": "mdFilesList",
           "name": "Markdown Files",
           "when": "workspaceFolderCount > 0"
+        },
+        {
+          "id": "tagFilesList",
+          "name": "Files by Tags",
+          "when": "workspaceFolderCount > 0"
         }
       ]
     },
@@ -50,6 +60,11 @@
         {
           "command": "memento.refreshMdFiles",
           "when": "view == mdFilesList",
+          "group": "navigation"
+        },
+        {
+          "command": "memento.refreshTagFiles",
+          "when": "view == tagFilesList",
           "group": "navigation"
         }
       ]
