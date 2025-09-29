@@ -27,8 +27,8 @@ class MdFileItem extends vscode.TreeItem {
 		this.description = this.fileInfo.birthtime.toLocaleDateString();
 		this.resourceUri = vscode.Uri.file(this.fileInfo.path);
 		this.command = {
-			command: 'vscode.open',
-			title: 'Open File',
+			command: 'markdown.showPreview',
+			title: 'Open Preview',
 			arguments: [this.resourceUri]
 		};
 		this.contextValue = 'mdFile';
@@ -54,8 +54,8 @@ class TagItem extends vscode.TreeItem {
 			this.description = fileInfo.birthtime.toLocaleDateString();
 			this.resourceUri = vscode.Uri.file(fileInfo.path);
 			this.command = {
-				command: 'vscode.open',
-				title: 'Open File',
+				command: 'markdown.showPreview',
+				title: 'Open Preview',
 				arguments: [this.resourceUri]
 			};
 			this.contextValue = 'mdFile';
