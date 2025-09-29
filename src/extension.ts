@@ -545,27 +545,82 @@ function collectAllTagFiles(tagInfo: TagInfo): MdFileInfo[] {
 	return allFiles;
 }
 
-function markdownToHtml(markdownContent: string): string {
-	// Simple markdown to HTML conversion
+async function markdownToHtml(markdownContent: string, filePath?: string): Promise<string> {
+	try {
+		// Try to use VSCode's built-in markdown engine
+		const markdownEngine = await vscode.commands.executeCommand(
+			'markdown.api.getEngine'
+		) as any;
+
+		if (markdownEngine && markdownEngine.render) {
+			// Use VSCode's markdown engine
+			const rendered = await markdownEngine.render(markdownContent);
+			return rendered.html || rendered;
+		}
+	} catch (error) {
+		console.log('VSCode markdown engine not available, using fallback');
+	}
+
+	// Fallback to enhanced manual conversion
 	let html = markdownContent
-		// Headers
-		.replace(/^### (.*$)/gim, '<h3>$1</h3>')
-		.replace(/^## (.*$)/gim, '<h2>$1</h2>')
-		.replace(/^# (.*$)/gim, '<h1>$1</h1>')
-		// Bold
+		// Code blocks with language support
+		.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+			const language = lang || '';
+			return `<pre><code class="language-${language}">${escapeHtml(code.trim())}</code></pre>`;
+		})
+		// Headers with anchors
+		.replace(/^### (.*$)/gim, '<h3 id="$1">$1</h3>')
+		.replace(/^## (.*$)/gim, '<h2 id="$1">$1</h2>')
+		.replace(/^# (.*$)/gim, '<h1 id="$1">$1</h1>')
+		// Bold and italic
+		.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
 		.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-		// Italic
 		.replace(/\*(.*?)\*/g, '<em>$1</em>')
-		// Code blocks
-		.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+		// Strikethrough
+		.replace(/~~(.*?)~~/g, '<del>$1</del>')
 		// Inline code
-		.replace(/`(.*?)`/g, '<code>$1</code>')
-		// Links
-		.replace(/\[([^\]]*)\]\(([^\)]*)\)/g, '<a href="$2">$1</a>')
-		// Line breaks
+		.replace(/`([^`]+)`/g, '<code>$1</code>')
+		// Links with better handling
+		.replace(/\[([^\]]*)\]\(([^\)]*)\)/g, '<a href="$2" target="_blank">$1</a>')
+		// Images
+		.replace(/!\[([^\]]*)\]\(([^\)]*)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; height: auto;">')
+		// Lists
+		.replace(/^\* (.+)$/gm, '<li>$1</li>')
+		.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+		.replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+		// Tables (basic support)
+		.replace(/\|(.+)\|/g, (match, content) => {
+			const cells = content.split('|').map((cell: string) => cell.trim());
+			return '<tr>' + cells.map((cell: string) => `<td>${cell}</td>`).join('') + '</tr>';
+		})
+		// Blockquotes
+		.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+		// Horizontal rules
+		.replace(/^---$/gm, '<hr>')
+		// Line breaks and paragraphs
+		.replace(/\n\n/g, '</p><p>')
 		.replace(/\n/g, '<br>');
 
+	// Wrap in paragraphs
+	html = '<p>' + html + '</p>';
+
+	// Clean up empty paragraphs
+	html = html.replace(/<p><\/p>/g, '');
+
 	return html;
+}
+
+function escapeHtml(text: string): string {
+	return text.replace(/[&<>"']/g, (match: string) => {
+		const escapeMap: { [key: string]: string } = {
+			'&': '&amp;',
+			'<': '&lt;',
+			'>': '&gt;',
+			'"': '&quot;',
+			"'": '&#x27;'
+		};
+		return escapeMap[match];
+	});
 }
 
 async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
@@ -608,7 +663,7 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 			try {
 				// Read the file content
 				const fileContent = await fs.promises.readFile(file.path, 'utf-8');
-				const htmlContent = markdownToHtml(fileContent);
+				const htmlContent = await markdownToHtml(fileContent, file.path);
 
 				filesHtml += `
 					<div class="file-container">
@@ -748,12 +803,66 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 						border-radius: 8px;
 						overflow-x: auto;
 						border-left: 4px solid #4ecdc4;
+						margin: 10px 0;
+						font-size: 0.9em;
 					}
 					.file-content pre code {
 						background: none;
 						color: #333;
 						padding: 0;
+						font-family: 'Fira Code', 'Courier New', monospace;
 					}
+					.file-content blockquote {
+						border-left: 4px solid #4ecdc4;
+						margin: 10px 0;
+						padding: 10px 15px;
+						background: rgba(78, 205, 196, 0.1);
+						font-style: italic;
+					}
+					.file-content table {
+						border-collapse: collapse;
+						width: 100%;
+						margin: 15px 0;
+					}
+					.file-content table th,
+					.file-content table td {
+						border: 1px solid #ddd;
+						padding: 8px 12px;
+						text-align: left;
+					}
+					.file-content table th {
+						background: #f8f9fa;
+						font-weight: 600;
+					}
+					.file-content ul, .file-content ol {
+						margin: 10px 0;
+						padding-left: 25px;
+					}
+					.file-content li {
+						margin: 5px 0;
+					}
+					.file-content img {
+						max-width: 100%;
+						height: auto;
+						border-radius: 8px;
+						box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+						margin: 10px 0;
+					}
+					.file-content hr {
+						border: none;
+						height: 2px;
+						background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+						margin: 20px 0;
+						border-radius: 1px;
+					}
+					/* Syntax highlighting classes */
+					.language-javascript .token.keyword { color: #d73a49; }
+					.language-javascript .token.string { color: #032f62; }
+					.language-javascript .token.comment { color: #6a737d; }
+					.language-python .token.keyword { color: #d73a49; }
+					.language-python .token.string { color: #032f62; }
+					.language-css .token.property { color: #005cc5; }
+					.language-css .token.value { color: #e36209; }
 					.file-container.error .file-header {
 						background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
 					}
