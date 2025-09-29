@@ -8,6 +8,7 @@ interface MdFileInfo {
 	path: string;
 	birthtime: Date;
 	relativePath: string;
+	displayTitle: string;
 	tags?: string[];
 }
 
@@ -22,7 +23,7 @@ class MdFileItem extends vscode.TreeItem {
 		public readonly fileInfo: MdFileInfo,
 		public readonly collapsibleState: vscode.TreeItemCollapsibleState
 	) {
-		super(fileInfo.relativePath, collapsibleState);
+		super(fileInfo.displayTitle, collapsibleState);
 		this.tooltip = `${this.fileInfo.relativePath}\nCreated: ${this.fileInfo.birthtime.toLocaleString()}`;
 		this.description = this.fileInfo.birthtime.toLocaleDateString();
 		this.resourceUri = vscode.Uri.file(this.fileInfo.path);
@@ -45,7 +46,7 @@ class TagItem extends vscode.TreeItem {
 	) {
 		// Call super constructor first
 		super(
-			isFile && fileInfo ? fileInfo.relativePath : tagInfo.tag,
+			isFile && fileInfo ? fileInfo.displayTitle : tagInfo.tag,
 			collapsibleState
 		);
 
@@ -404,8 +405,8 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(refreshDisposable);
 }
 
-async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birthtime: Date, relativePath: string}>> {
-	const mdFiles: Array<{path: string, birthtime: Date, relativePath: string}> = [];
+async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birthtime: Date, relativePath: string, displayTitle: string}>> {
+	const mdFiles: Array<{path: string, birthtime: Date, relativePath: string, displayTitle: string}> = [];
 
 	async function scanDirectory(currentDir: string, rootDir: string) {
 		const items = await fs.promises.readdir(currentDir);
@@ -421,10 +422,12 @@ async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birt
 				}
 			} else if (stats.isFile() && path.extname(item).toLowerCase() === '.md') {
 				const relativePath = path.relative(rootDir, itemPath);
+				const displayTitle = await extractFirstHeading(itemPath);
 				mdFiles.push({
 					path: itemPath,
 					birthtime: stats.birthtime,
-					relativePath: relativePath
+					relativePath: relativePath,
+					displayTitle: displayTitle
 				});
 			}
 		}
@@ -451,11 +454,13 @@ async function findMarkdownFilesWithTags(dir: string): Promise<MdFileInfo[]> {
 				}
 			} else if (stats.isFile() && path.extname(item).toLowerCase() === '.md') {
 				const relativePath = path.relative(rootDir, itemPath);
+				const displayTitle = await extractFirstHeading(itemPath);
 				const tags = await extractTagsFromFile(itemPath);
 				mdFiles.push({
 					path: itemPath,
 					birthtime: stats.birthtime,
 					relativePath: relativePath,
+					displayTitle: displayTitle,
 					tags: tags
 				});
 			}
@@ -487,6 +492,26 @@ async function extractTagsFromFile(filePath: string): Promise<string[]> {
 	} catch (error) {
 		console.error(`Error reading file ${filePath}:`, error);
 		return [];
+	}
+}
+
+async function extractFirstHeading(filePath: string): Promise<string> {
+	try {
+		const content = await fs.promises.readFile(filePath, 'utf-8');
+
+		// Match first level 1 heading (# title)
+		const headingMatch = content.match(/^#\s+(.+)$/m);
+		if (headingMatch) {
+			return headingMatch[1].trim();
+		}
+
+		// If no heading found, return just the filename without extension
+		const fileName = path.basename(filePath, '.md');
+		return fileName;
+	} catch (error) {
+		console.error(`Error reading file ${filePath}:`, error);
+		// Fallback to filename without extension
+		return path.basename(filePath, '.md');
 	}
 }
 
