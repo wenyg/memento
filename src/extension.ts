@@ -545,83 +545,7 @@ function collectAllTagFiles(tagInfo: TagInfo): MdFileInfo[] {
 	return allFiles;
 }
 
-async function markdownToHtml(markdownContent: string, filePath?: string): Promise<string> {
-	try {
-		// Try to use VSCode's built-in markdown engine
-		const markdownEngine = await vscode.commands.executeCommand(
-			'markdown.api.getEngine'
-		) as any;
-
-		if (markdownEngine && markdownEngine.render) {
-			// Use VSCode's markdown engine
-			const rendered = await markdownEngine.render(markdownContent);
-			return rendered.html || rendered;
-		}
-	} catch (error) {
-		console.log('VSCode markdown engine not available, using fallback');
-	}
-
-	// Fallback to enhanced manual conversion
-	let html = markdownContent
-		// Code blocks with language support
-		.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-			const language = lang || '';
-			return `<pre><code class="language-${language}">${escapeHtml(code.trim())}</code></pre>`;
-		})
-		// Headers with anchors
-		.replace(/^### (.*$)/gim, '<h3 id="$1">$1</h3>')
-		.replace(/^## (.*$)/gim, '<h2 id="$1">$1</h2>')
-		.replace(/^# (.*$)/gim, '<h1 id="$1">$1</h1>')
-		// Bold and italic
-		.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
-		.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-		.replace(/\*(.*?)\*/g, '<em>$1</em>')
-		// Strikethrough
-		.replace(/~~(.*?)~~/g, '<del>$1</del>')
-		// Inline code
-		.replace(/`([^`]+)`/g, '<code>$1</code>')
-		// Links with better handling
-		.replace(/\[([^\]]*)\]\(([^\)]*)\)/g, '<a href="$2" target="_blank">$1</a>')
-		// Images
-		.replace(/!\[([^\]]*)\]\(([^\)]*)\)/g, '<img src="$2" alt="$1" style="max-width: 100%; height: auto;">')
-		// Lists
-		.replace(/^\* (.+)$/gm, '<li>$1</li>')
-		.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-		.replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-		// Tables (basic support)
-		.replace(/\|(.+)\|/g, (match, content) => {
-			const cells = content.split('|').map((cell: string) => cell.trim());
-			return '<tr>' + cells.map((cell: string) => `<td>${cell}</td>`).join('') + '</tr>';
-		})
-		// Blockquotes
-		.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
-		// Horizontal rules
-		.replace(/^---$/gm, '<hr>')
-		// Line breaks and paragraphs
-		.replace(/\n\n/g, '</p><p>')
-		.replace(/\n/g, '<br>');
-
-	// Wrap in paragraphs
-	html = '<p>' + html + '</p>';
-
-	// Clean up empty paragraphs
-	html = html.replace(/<p><\/p>/g, '');
-
-	return html;
-}
-
-function escapeHtml(text: string): string {
-	return text.replace(/[&<>"']/g, (match: string) => {
-		const escapeMap: { [key: string]: string } = {
-			'&': '&amp;',
-			'<': '&lt;',
-			'>': '&gt;',
-			'"': '&quot;',
-			"'": '&#x27;'
-		};
-		return escapeMap[match];
-	});
-}
+// 移除自定义 markdown 转换，改用专业库
 
 async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 	try {
@@ -657,17 +581,15 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 		tagFilesPanel.title = `Tag: ${tagInfo.tag}`;
 		tagFilesPanel.reveal(vscode.ViewColumn.Beside);
 
-		// Process files and add HTML content
+		// Process files and read raw content (rendering will be done in React)
 		const processedFiles = [];
 		for (const file of sortedFiles) {
 			try {
 				// Read the file content
 				const fileContent = await fs.promises.readFile(file.path, 'utf-8');
-				const htmlContent = await markdownToHtml(fileContent, file.path);
 
 				processedFiles.push({
 					...file,
-					htmlContent: htmlContent,
 					rawContent: fileContent
 				});
 
@@ -675,8 +597,7 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 				console.error(`Error reading file ${file.path}:`, error);
 				processedFiles.push({
 					...file,
-					htmlContent: '<p>Error reading file content</p>',
-					rawContent: '',
+					rawContent: 'Error reading file content',
 					error: true
 				});
 			}
@@ -690,9 +611,12 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 				<meta charset="UTF-8">
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 				<title>Tag: ${tagInfo.tag}</title>
-				<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-				<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-				<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+				<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+				<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+				<script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
+				<script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+				<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+				<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
 				<style>
 					* {
 						margin: 0;
@@ -886,12 +810,70 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 						color: #e83e8c;
 					}
 					.file-content pre {
-						background: #f8f9fa;
+						background: #f8f9fa !important;
 						padding: 15px;
 						border-radius: 8px;
 						overflow-x: auto;
 						border-left: 4px solid #4ecdc4;
 						margin: 10px 0;
+						position: relative;
+					}
+					.file-content pre code {
+						background: transparent !important;
+						padding: 0;
+						border-radius: 0;
+						font-family: 'Fira Code', 'SF Mono', 'Monaco', 'Cascadia Code', 'Roboto Mono', 'Courier New', monospace;
+						line-height: 1.5;
+					}
+					.file-content .hljs {
+						background: #f8f9fa !important;
+						color: #333 !important;
+					}
+					.file-content blockquote {
+						border-left: 4px solid #4ecdc4;
+						margin: 15px 0;
+						padding: 10px 20px;
+						background: rgba(78, 205, 196, 0.1);
+						border-radius: 0 8px 8px 0;
+						font-style: italic;
+					}
+					.file-content table {
+						border-collapse: collapse;
+						width: 100%;
+						margin: 15px 0;
+						border-radius: 8px;
+						overflow: hidden;
+						box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+					}
+					.file-content table th,
+					.file-content table td {
+						border: 1px solid #e1e4e8;
+						padding: 12px 16px;
+						text-align: left;
+					}
+					.file-content table th {
+						background: linear-gradient(45deg, #667eea, #764ba2);
+						color: white;
+						font-weight: 600;
+					}
+					.file-content table tbody tr:nth-child(even) {
+						background: rgba(102, 126, 234, 0.05);
+					}
+					.file-content ul, .file-content ol {
+						margin: 15px 0;
+						padding-left: 30px;
+					}
+					.file-content li {
+						margin: 8px 0;
+						line-height: 1.6;
+					}
+					.file-content img {
+						max-width: 100%;
+						height: auto;
+						border-radius: 8px;
+						box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+						margin: 15px 0;
+						display: block;
 					}
 				</style>
 			</head>
@@ -901,8 +883,65 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 				<script type="text/babel">
 					const { useState, useEffect, useMemo } = React;
 
+					// 配置 marked
+					marked.setOptions({
+						highlight: function(code, lang) {
+							if (lang && hljs.getLanguage(lang)) {
+								try {
+									return hljs.highlight(code, { language: lang }).value;
+								} catch (err) {
+									console.warn('Highlight error:', err);
+								}
+							}
+							return hljs.highlightAuto(code).value;
+						},
+						langPrefix: 'hljs language-',
+						breaks: true,
+						gfm: true
+					});
+
 					// 文件数据
 					const filesData = ${JSON.stringify(processedFiles)};
+
+					// Markdown 渲染组件
+					const MarkdownRenderer = ({ content, truncate = false, maxLength = 1000 }) => {
+						const [htmlContent, setHtmlContent] = useState('');
+
+						useEffect(() => {
+							if (content && content !== 'Error reading file content') {
+								try {
+									let contentToRender = content;
+									if (truncate && content.length > maxLength) {
+										// 智能截断：在完整段落处截断
+										const truncated = content.substring(0, maxLength);
+										const lastNewline = truncated.lastIndexOf('\\n\\n');
+										contentToRender = lastNewline > maxLength * 0.7
+											? truncated.substring(0, lastNewline) + '\\n\\n...'
+											: truncated + '...';
+									}
+
+									const html = marked.parse(contentToRender);
+									setHtmlContent(html);
+
+									// 高亮代码块
+									setTimeout(() => {
+										document.querySelectorAll('pre code').forEach((block) => {
+											if (!block.classList.contains('hljs')) {
+												hljs.highlightElement(block);
+											}
+										});
+									}, 100);
+								} catch (error) {
+									console.error('Markdown parsing error:', error);
+									setHtmlContent(\`<p>Error parsing markdown: \${error.message}</p>\`);
+								}
+							} else {
+								setHtmlContent('<p>Error reading file content</p>');
+							}
+						}, [content, truncate, maxLength]);
+
+						return <div dangerouslySetInnerHTML={{ __html: htmlContent }} />;
+					};
 
 					// 文件卡片组件
 					const FileCard = ({ file, index }) => {
@@ -914,9 +953,7 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 							setTimeout(() => setContentLoaded(true), index * 50);
 						}, []);
 
-						const truncatedContent = file.htmlContent && file.htmlContent.length > 800
-							? file.htmlContent.substring(0, 800) + '...'
-							: file.htmlContent || '';
+						const shouldTruncate = file.rawContent && file.rawContent.length > 1000;
 
 						return (
 							<div
@@ -935,10 +972,12 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 									</div>
 								</div>
 								<div className={\`file-content \${expanded ? 'expanded' : ''}\`}>
-									<div dangerouslySetInnerHTML={{
-										__html: expanded ? file.htmlContent : truncatedContent
-									}} />
-									{file.htmlContent && file.htmlContent.length > 800 && (
+									<MarkdownRenderer
+										content={file.rawContent}
+										truncate={!expanded && shouldTruncate}
+										maxLength={1000}
+									/>
+									{shouldTruncate && (
 										<button
 											className="expand-btn"
 											onClick={() => setExpanded(!expanded)}
