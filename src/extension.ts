@@ -66,6 +66,11 @@ class TagItem extends vscode.TreeItem {
 			this.description = `${tagInfo.files.length} files`;
 			this.contextValue = 'tag';
 			this.iconPath = new vscode.ThemeIcon('tag');
+			this.command = {
+				command: 'memento.showTagFiles',
+				title: 'Show Tag Files',
+				arguments: [tagInfo]
+			};
 		}
 	}
 }
@@ -400,9 +405,15 @@ export function activate(context: vscode.ExtensionContext) {
 		mainProvider.refresh();
 	});
 
+	const showTagFilesDisposable = vscode.commands.registerCommand('memento.showTagFiles', (tagInfo: TagInfo) => {
+		console.log('Show tag files command triggered for tag:', tagInfo.tag);
+		showTagFilesInEditor(tagInfo);
+	});
+
 	context.subscriptions.push(switchToFileViewDisposable);
 	context.subscriptions.push(switchToTagViewDisposable);
 	context.subscriptions.push(refreshDisposable);
+	context.subscriptions.push(showTagFilesDisposable);
 }
 
 async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birthtime: Date, relativePath: string, displayTitle: string}>> {
@@ -512,6 +523,256 @@ async function extractFirstHeading(filePath: string): Promise<string> {
 		console.error(`Error reading file ${filePath}:`, error);
 		// Fallback to filename without extension
 		return path.basename(filePath, '.md');
+	}
+}
+
+function collectAllTagFiles(tagInfo: TagInfo): MdFileInfo[] {
+	const allFiles: MdFileInfo[] = [];
+
+	// Add files from current tag
+	allFiles.push(...tagInfo.files);
+
+	// Recursively add files from child tags
+	if (tagInfo.children) {
+		for (const childTag of tagInfo.children) {
+			allFiles.push(...collectAllTagFiles(childTag));
+		}
+	}
+
+	return allFiles;
+}
+
+function markdownToHtml(markdownContent: string): string {
+	// Simple markdown to HTML conversion
+	let html = markdownContent
+		// Headers
+		.replace(/^### (.*$)/gim, '<h3>$1</h3>')
+		.replace(/^## (.*$)/gim, '<h2>$1</h2>')
+		.replace(/^# (.*$)/gim, '<h1>$1</h1>')
+		// Bold
+		.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+		// Italic
+		.replace(/\*(.*?)\*/g, '<em>$1</em>')
+		// Code blocks
+		.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+		// Inline code
+		.replace(/`(.*?)`/g, '<code>$1</code>')
+		// Links
+		.replace(/\[([^\]]*)\]\(([^\)]*)\)/g, '<a href="$2">$1</a>')
+		// Line breaks
+		.replace(/\n/g, '<br>');
+
+	return html;
+}
+
+async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
+	try {
+		const allFiles = collectAllTagFiles(tagInfo);
+
+		if (allFiles.length === 0) {
+			vscode.window.showInformationMessage(`No files found for tag "${tagInfo.tag}"`);
+			return;
+		}
+
+		// Sort files by creation time (newest first)
+		const sortedFiles = allFiles.sort((a, b) => b.birthtime.getTime() - a.birthtime.getTime());
+
+		// Create WebView panel
+		const panel = vscode.window.createWebviewPanel(
+			'tagFiles',
+			`Tag: ${tagInfo.tag}`,
+			vscode.ViewColumn.Beside,
+			{
+				enableScripts: true,
+				retainContextWhenHidden: true
+			}
+		);
+
+		// Build HTML content
+		let filesHtml = '';
+		for (const file of sortedFiles) {
+			try {
+				// Read the file content
+				const fileContent = await fs.promises.readFile(file.path, 'utf-8');
+				const htmlContent = markdownToHtml(fileContent);
+
+				filesHtml += `
+					<div class="file-container">
+						<div class="file-header">
+							<h2 class="file-title">${file.displayTitle}</h2>
+							<div class="file-meta">
+								<span class="file-path">${file.relativePath}</span>
+								<span class="file-date">${file.birthtime.toLocaleDateString()}</span>
+							</div>
+						</div>
+						<div class="file-content">
+							${htmlContent}
+						</div>
+					</div>
+				`;
+
+			} catch (error) {
+				console.error(`Error reading file ${file.path}:`, error);
+				filesHtml += `
+					<div class="file-container error">
+						<div class="file-header">
+							<h2 class="file-title">${file.displayTitle}</h2>
+							<div class="file-meta">
+								<span class="file-path">${file.relativePath}</span>
+								<span class="error-text">Error reading file</span>
+							</div>
+						</div>
+					</div>
+				`;
+			}
+		}
+
+		// Create the complete HTML
+		const html = `
+			<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+				<title>Tag: ${tagInfo.tag}</title>
+				<style>
+					body {
+						font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+						background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+						margin: 0;
+						padding: 20px;
+						min-height: 100vh;
+						color: #333;
+					}
+					.container {
+						max-width: 1200px;
+						margin: 0 auto;
+					}
+					.header {
+						text-align: center;
+						margin-bottom: 30px;
+						background: rgba(255, 255, 255, 0.95);
+						padding: 20px;
+						border-radius: 15px;
+						box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+						backdrop-filter: blur(10px);
+					}
+					.header h1 {
+						margin: 0;
+						color: #333;
+						font-size: 2.5em;
+						font-weight: 300;
+					}
+					.file-count {
+						color: #666;
+						font-size: 1.1em;
+						margin-top: 10px;
+					}
+					.file-container {
+						background: rgba(255, 255, 255, 0.95);
+						margin: 20px 0;
+						border-radius: 15px;
+						overflow: hidden;
+						box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+						backdrop-filter: blur(10px);
+						transition: transform 0.3s ease, box-shadow 0.3s ease;
+					}
+					.file-container:hover {
+						transform: translateY(-5px);
+						box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+					}
+					.file-header {
+						background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+						color: white;
+						padding: 20px;
+					}
+					.file-title {
+						margin: 0 0 10px 0;
+						font-size: 1.5em;
+						font-weight: 500;
+					}
+					.file-meta {
+						display: flex;
+						justify-content: space-between;
+						align-items: center;
+						opacity: 0.9;
+					}
+					.file-path {
+						font-size: 0.9em;
+						font-family: 'Courier New', monospace;
+						background: rgba(255, 255, 255, 0.2);
+						padding: 4px 8px;
+						border-radius: 4px;
+					}
+					.file-date {
+						font-size: 0.9em;
+					}
+					.file-content {
+						padding: 30px;
+						line-height: 1.6;
+						font-size: 1.1em;
+					}
+					.file-content h1, .file-content h2, .file-content h3 {
+						color: #333;
+						margin-top: 20px;
+						margin-bottom: 10px;
+					}
+					.file-content h1 {
+						border-bottom: 2px solid #4ecdc4;
+						padding-bottom: 10px;
+					}
+					.file-content code {
+						background: #f8f9fa;
+						padding: 2px 6px;
+						border-radius: 4px;
+						font-family: 'Courier New', monospace;
+						color: #e83e8c;
+					}
+					.file-content pre {
+						background: #f8f9fa;
+						padding: 15px;
+						border-radius: 8px;
+						overflow-x: auto;
+						border-left: 4px solid #4ecdc4;
+					}
+					.file-content pre code {
+						background: none;
+						color: #333;
+						padding: 0;
+					}
+					.file-container.error .file-header {
+						background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
+					}
+					.error-text {
+						color: rgba(255, 255, 255, 0.9);
+						font-style: italic;
+					}
+					a {
+						color: #4ecdc4;
+						text-decoration: none;
+					}
+					a:hover {
+						text-decoration: underline;
+					}
+				</style>
+			</head>
+			<body>
+				<div class="container">
+					<div class="header">
+						<h1>📁 ${tagInfo.tag}</h1>
+						<div class="file-count">${sortedFiles.length} files</div>
+					</div>
+					${filesHtml}
+				</div>
+			</body>
+			</html>
+		`;
+
+		panel.webview.html = html;
+
+	} catch (error) {
+		console.error('Error showing tag files:', error);
+		vscode.window.showErrorMessage('Failed to show tag files');
 	}
 }
 
