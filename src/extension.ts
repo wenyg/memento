@@ -798,8 +798,6 @@ async function getNotesRootPath(): Promise<string | null> {
 		try {
 			const stats = await fs.promises.stat(configuredPath);
 			if (stats.isDirectory()) {
-				// Check if this path is in any workspace folder
-				await checkAndSuggestAddToWorkspace(configuredPath);
 				return configuredPath;
 			} else {
 				vscode.window.showErrorMessage(`配置的笔记路径不是一个有效的目录: ${configuredPath}`);
@@ -818,41 +816,6 @@ async function getNotesRootPath(): Promise<string | null> {
 	}
 
 	return workspaceFolders[0].uri.fsPath;
-}
-
-async function checkAndSuggestAddToWorkspace(notesPath: string): Promise<void> {
-	const workspaceFolders = vscode.workspace.workspaceFolders;
-
-	// Check if notes path is already in workspace
-	if (workspaceFolders) {
-		for (const folder of workspaceFolders) {
-			if (folder.uri.fsPath === notesPath) {
-				return; // Already in workspace
-			}
-		}
-	}
-
-	// Not in workspace, suggest adding it
-	const answer = await vscode.window.showInformationMessage(
-		`笔记目录 "${notesPath}" 不在当前工作区中。添加到工作区可以使用 VSCode 的查找和文件管理功能。`,
-		'添加到工作区',
-		'暂不添加'
-	);
-
-	if (answer === '添加到工作区') {
-		const folderUri = vscode.Uri.file(notesPath);
-		const workspaceFolder: vscode.WorkspaceFolder = {
-			uri: folderUri,
-			name: path.basename(notesPath),
-			index: workspaceFolders ? workspaceFolders.length : 0
-		};
-
-		vscode.workspace.updateWorkspaceFolders(
-			workspaceFolders ? workspaceFolders.length : 0,
-			0,
-			workspaceFolder
-		);
-	}
 }
 
 // This method is called when your extension is activated
@@ -915,12 +878,6 @@ export function activate(context: vscode.ExtensionContext) {
 		mainProvider.switchToSettingsView();
 	});
 
-	const openFolderViewDisposable = vscode.commands.registerCommand('memento.openFolderView', async () => {
-		console.log('Open folder view command triggered');
-		// Focus on the folders view (workspace folder tree)
-		await vscode.commands.executeCommand('workbench.explorer.fileView.focus');
-	});
-
 	const refreshDisposable = vscode.commands.registerCommand('memento.refreshMdFiles', () => {
 		console.log('Refresh command triggered');
 		mainProvider.refresh();
@@ -952,27 +909,30 @@ export function activate(context: vscode.ExtensionContext) {
 
 		if (filePath) {
 			const uri = vscode.Uri.file(filePath);
-
-			// Check if the file's folder is in the workspace
-			const workspaceFolders = vscode.workspace.workspaceFolders;
-			const isInWorkspace = workspaceFolders?.some(folder =>
-				filePath!.startsWith(folder.uri.fsPath)
-			);
-
-			// If not in workspace, we need to ensure the notes root is added
-			if (!isInWorkspace) {
+			try {
+				// Try to reveal in explorer directly
+				await vscode.commands.executeCommand('revealInExplorer', uri);
+			} catch (error) {
+				// If it fails (e.g., file not in workspace), suggest adding to workspace
 				const notesPath = await getNotesRootPath();
 				if (notesPath) {
-					await checkAndSuggestAddToWorkspace(notesPath);
+					const action = await vscode.window.showWarningMessage(
+						'文件不在工作区中，无法在资源管理器中显示。是否将笔记目录添加到工作区？',
+						'添加到工作区',
+						'取消'
+					);
+					if (action === '添加到工作区') {
+						const added = vscode.workspace.updateWorkspaceFolders(
+							vscode.workspace.workspaceFolders?.length || 0,
+							0,
+							{ uri: vscode.Uri.file(notesPath) }
+						);
+						if (added) {
+							vscode.window.showInformationMessage('已添加笔记目录到工作区');
+						}
+					}
 				}
 			}
-
-			// First ensure the folders view is focused and initialized
-			await vscode.commands.executeCommand('workbench.explorer.fileView.focus');
-			// Small delay to ensure view is ready
-			await new Promise(resolve => setTimeout(resolve, 100));
-			// Then reveal in explorer
-			await vscode.commands.executeCommand('revealInExplorer', uri);
 		}
 	});
 
@@ -999,11 +959,87 @@ export function activate(context: vscode.ExtensionContext) {
 		await openPeriodicNote('weekly');
 	});
 
+	const createNoteDisposable = vscode.commands.registerCommand('memento.createNote', async () => {
+		console.log('Create note command triggered');
+
+		// Get notes root path
+		const notesPath = await getNotesRootPath();
+		if (!notesPath) {
+			vscode.window.showErrorMessage('未找到笔记目录');
+			return;
+		}
+
+		// Ask user for file name
+		const fileName = await vscode.window.showInputBox({
+			prompt: '请输入笔记文件名',
+			placeHolder: '例如: 我的笔记.md 或 folder/我的笔记.md',
+			validateInput: (value) => {
+				if (!value) {
+					return '文件名不能为空';
+				}
+				if (!value.endsWith('.md')) {
+					return '文件名必须以 .md 结尾';
+				}
+				return null;
+			}
+		});
+
+		if (!fileName) {
+			return; // User cancelled
+		}
+
+		// Build full path
+		const fullPath = path.join(notesPath, fileName);
+
+		// Create directory if needed
+		const dirPath = path.dirname(fullPath);
+		try {
+			await fs.promises.mkdir(dirPath, { recursive: true });
+		} catch (error) {
+			vscode.window.showErrorMessage(`创建目录失败: ${error}`);
+			return;
+		}
+
+		// Check if file already exists
+		try {
+			await fs.promises.access(fullPath);
+			vscode.window.showErrorMessage('文件已存在');
+			return;
+		} catch {
+			// File doesn't exist, continue
+		}
+
+		// Create and open the file
+		try {
+			// Create file with basic front matter
+			const now = new Date();
+			const dateStr = now.toISOString().split('T')[0];
+			const content = `---
+title: ${path.basename(fileName, '.md')}
+date: ${dateStr}
+tags: []
+---
+
+# ${path.basename(fileName, '.md')}
+
+`;
+			await fs.promises.writeFile(fullPath, content, 'utf-8');
+
+			// Open the file
+			const doc = await vscode.workspace.openTextDocument(fullPath);
+			await vscode.window.showTextDocument(doc);
+
+			// Refresh the view
+			mainProvider.refresh();
+		} catch (error) {
+			vscode.window.showErrorMessage(`创建文件失败: ${error}`);
+		}
+	});
+
 	context.subscriptions.push(switchToFileViewDisposable);
 	context.subscriptions.push(switchToTagViewDisposable);
 	context.subscriptions.push(switchToCalendarViewDisposable);
 	context.subscriptions.push(switchToSettingsViewDisposable);
-	context.subscriptions.push(openFolderViewDisposable);
 	context.subscriptions.push(refreshDisposable);
 	context.subscriptions.push(executeCalendarActionDisposable);
 	context.subscriptions.push(executeSettingActionDisposable);
@@ -1011,6 +1047,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(fillFrontMatterDateDisposable);
 	context.subscriptions.push(openDailyNoteDisposable);
 	context.subscriptions.push(openWeeklyNoteDisposable);
+	context.subscriptions.push(createNoteDisposable);
 }
 
 function shouldExcludeFolder(folderName: string, excludeFolders: string[]): boolean {

@@ -69,11 +69,6 @@
         "icon": "$(gear)"
       },
       {
-        "command": "memento.openFolderView",
-        "title": "Open Folder View",
-        "icon": "$(folder)"
-      },
-      {
         "command": "memento.revealInExplorer",
         "title": "在文件夹中显示"
       },
@@ -97,6 +92,11 @@
       {
         "command": "memento.openSettings",
         "title": "Memento: 打开设置"
+      },
+      {
+        "command": "memento.createNote",
+        "title": "Memento: 新建笔记",
+        "icon": "$(new-file)"
       }
     ],
     "viewsContainers": {
@@ -140,7 +140,7 @@
           "group": "navigation@4"
         },
         {
-          "command": "memento.openFolderView",
+          "command": "memento.createNote",
           "when": "view == mementoMainView",
           "group": "navigation@5"
         },
