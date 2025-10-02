@@ -133,20 +133,30 @@
           "default": "",
           "description": "日记存储目录的绝对路径（留空则使用笔记根目录下的 daily 文件夹）"
         },
-        "memento.dailyNoteTemplate": {
+        "memento.dailyNoteFileNameFormat": {
           "type": "string",
-          "default": "---\ndate: {{date}}\ntitle: {{title}}\ntags: [daily]\n---\n\n# {{title}}\n\n",
-          "description": "日记模板，支持变量：{{date}}, {{title}}, {{year}}, {{month}}, {{day}}"
+          "default": "{{year}}-{{month}}-{{day}}.md",
+          "description": "日记文件名格式，支持变量：{{year}}, {{month}}, {{day}}"
+        },
+        "memento.dailyNoteTemplatePath": {
+          "type": "string",
+          "default": "",
+          "description": "日记模板文件路径，支持绝对路径或相对于笔记根目录的相对路径（留空则使用内置默认模板）"
         },
         "memento.weeklyNotesPath": {
           "type": "string",
           "default": "",
           "description": "周报存储目录的绝对路径（留空则使用笔记根目录下的 weekly 文件夹）"
         },
-        "memento.weeklyNoteTemplate": {
+        "memento.weeklyNoteFileNameFormat": {
           "type": "string",
-          "default": "---\ndate: {{date}}\ntitle: {{title}}\ntags: [weekly]\n---\n\n# {{title}}\n\n## 本周总结\n\n## 下周计划\n\n",
-          "description": "周报模板，支持变量：{{date}}, {{title}}, {{year}}, {{week}}"
+          "default": "{{year}}-W{{week}}.md",
+          "description": "周报文件名格式，支持变量：{{year}}, {{week}}"
+        },
+        "memento.weeklyNoteTemplatePath": {
+          "type": "string",
+          "default": "",
+          "description": "周报模板文件路径，支持绝对路径或相对于笔记根目录的相对路径（留空则使用内置默认模板）"
         }
       }
     }

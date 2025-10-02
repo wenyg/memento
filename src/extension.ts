@@ -1088,11 +1088,31 @@ async function openPeriodicNote(type: 'daily' | 'weekly'): Promise<void> {
 		const month = String(now.getMonth() + 1).padStart(2, '0');
 		const day = String(now.getDate()).padStart(2, '0');
 
-		fileName = `${year}-${month}-${day}.md`;
+		// Get file name format
+		const fileNameFormat: string = config.get('dailyNoteFileNameFormat', '{{year}}-{{month}}-{{day}}.md');
+		fileName = fileNameFormat
+			.replace(/\{\{year\}\}/g, String(year))
+			.replace(/\{\{month\}\}/g, month)
+			.replace(/\{\{day\}\}/g, day);
+
 		dateStr = `${year}-${month}-${day}`;
 		title = `${year}年${month}月${day}日`;
 
-		template = config.get('dailyNoteTemplate', '---\ndate: {{date}}\ntitle: {{title}}\ntags: [daily]\n---\n\n# {{title}}\n\n');
+		// Load template from file or use default
+		const configTemplatePath: string = config.get('dailyNoteTemplatePath', '');
+		const resolvedTemplatePath = await resolveTemplatePath(configTemplatePath, notesPath);
+
+		if (resolvedTemplatePath) {
+			try {
+				template = await fs.promises.readFile(resolvedTemplatePath, 'utf-8');
+			} catch (error) {
+				vscode.window.showErrorMessage(`无法读取模板文件: ${resolvedTemplatePath}`);
+				template = getDefaultDailyTemplate();
+			}
+		} else {
+			template = getDefaultDailyTemplate();
+		}
+
 		template = template
 			.replace(/\{\{date\}\}/g, dateStr)
 			.replace(/\{\{title\}\}/g, title)
@@ -1105,12 +1125,32 @@ async function openPeriodicNote(type: 'daily' | 'weekly'): Promise<void> {
 
 		const year = now.getFullYear();
 		const week = getWeekNumber(now);
+		const weekPadded = String(week).padStart(2, '0');
 
-		fileName = `${year}-W${String(week).padStart(2, '0')}.md`;
-		dateStr = `${year}-W${String(week).padStart(2, '0')}`;
+		// Get file name format
+		const fileNameFormat: string = config.get('weeklyNoteFileNameFormat', '{{year}}-W{{week}}.md');
+		fileName = fileNameFormat
+			.replace(/\{\{year\}\}/g, String(year))
+			.replace(/\{\{week\}\}/g, weekPadded);
+
+		dateStr = `${year}-W${weekPadded}`;
 		title = `${year}年第${week}周`;
 
-		template = config.get('weeklyNoteTemplate', '---\ndate: {{date}}\ntitle: {{title}}\ntags: [weekly]\n---\n\n# {{title}}\n\n## 本周总结\n\n## 下周计划\n\n');
+		// Load template from file or use default
+		const configTemplatePath: string = config.get('weeklyNoteTemplatePath', '');
+		const resolvedTemplatePath = await resolveTemplatePath(configTemplatePath, notesPath);
+
+		if (resolvedTemplatePath) {
+			try {
+				template = await fs.promises.readFile(resolvedTemplatePath, 'utf-8');
+			} catch (error) {
+				vscode.window.showErrorMessage(`无法读取模板文件: ${resolvedTemplatePath}`);
+				template = getDefaultWeeklyTemplate();
+			}
+		} else {
+			template = getDefaultWeeklyTemplate();
+		}
+
 		template = template
 			.replace(/\{\{date\}\}/g, dateStr)
 			.replace(/\{\{title\}\}/g, title)
@@ -1139,6 +1179,49 @@ async function openPeriodicNote(type: 'daily' | 'weekly'): Promise<void> {
 	// Open the file
 	const document = await vscode.workspace.openTextDocument(filePath);
 	await vscode.window.showTextDocument(document);
+}
+
+async function resolveTemplatePath(templatePath: string, notesPath: string): Promise<string> {
+	// If empty, return empty to use default template
+	if (!templatePath) {
+		return '';
+	}
+
+	// Check if it's an absolute path
+	if (path.isAbsolute(templatePath)) {
+		return templatePath;
+	}
+
+	// It's a relative path, resolve it relative to notes root path
+	return path.join(notesPath, templatePath);
+}
+
+function getDefaultDailyTemplate(): string {
+	return `---
+date: {{date}}
+title: {{title}}
+tags: [daily]
+---
+
+# {{title}}
+
+`;
+}
+
+function getDefaultWeeklyTemplate(): string {
+	return `---
+date: {{date}}
+title: {{title}}
+tags: [weekly]
+---
+
+# {{title}}
+
+## 本周总结
+
+## 下周计划
+
+`;
 }
 
 function getWeekNumber(date: Date): number {
