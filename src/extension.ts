@@ -583,7 +583,12 @@ async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
 						case 'editFile':
 							try {
 								const fileUri = vscode.Uri.file(message.path);
-								await vscode.window.showTextDocument(fileUri);
+								// 在主编辑器区域打开文件，不影响侧边栏的查看窗口
+								await vscode.window.showTextDocument(fileUri, {
+									viewColumn: vscode.ViewColumn.One, // 在主编辑器区域打开
+									preserveFocus: false, // 获得焦点，方便编辑
+									preview: false // 不使用预览模式，确保文件保持打开状态
+								});
 							} catch (error) {
 								console.error('Error opening file:', error);
 								vscode.window.showErrorMessage(`Failed to open file: ${message.path}`);
