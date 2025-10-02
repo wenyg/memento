@@ -516,7 +516,8 @@ class CalendarProvider implements vscode.TreeDataProvider<CalendarItem> {
 enum ViewMode {
 	FILES = 'files',
 	TAGS = 'tags',
-	CALENDAR = 'calendar'
+	CALENDAR = 'calendar',
+	SETTINGS = 'settings'
 }
 
 class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem | CalendarItem> {
@@ -568,6 +569,11 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 		this._onDidChangeTreeData.fire();
 	}
 
+	switchToSettingsView(): void {
+		this.currentMode = ViewMode.SETTINGS;
+		this._onDidChangeTreeData.fire();
+	}
+
 	refresh(): void {
 		if (this.currentMode === ViewMode.FILES) {
 			this.fileProvider.refresh();
@@ -587,9 +593,156 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 			return this.fileProvider.getChildren(element as MdFileItem);
 		} else if (this.currentMode === ViewMode.TAGS) {
 			return this.tagProvider.getChildren(element as TagItem);
-		} else {
+		} else if (this.currentMode === ViewMode.CALENDAR) {
 			return this.calendarProvider.getChildren(element as CalendarItem);
+		} else {
+			// SETTINGS mode
+			return this.getSettingsItems();
 		}
+	}
+
+	private async getSettingsItems(): Promise<CalendarItem[]> {
+		const notesPath = await getNotesRootPath();
+		if (!notesPath) {
+			return [];
+		}
+
+		const config = await loadMementoConfig(notesPath);
+
+		return [
+			new CalendarItem(
+				`排除文件夹: ${config.excludeFolders.join(', ')}`,
+				vscode.TreeItemCollapsibleState.None,
+				'action',
+				async () => {
+					const input = await vscode.window.showInputBox({
+						prompt: '输入要排除的文件夹（逗号分隔）',
+						value: config.excludeFolders.join(', '),
+						placeHolder: '例如: node_modules, .git, temp*'
+					});
+					if (input !== undefined) {
+						const newConfig = { ...config, excludeFolders: input.split(',').map(s => s.trim()).filter(s => s) };
+						await saveMementoConfig(notesPath, newConfig);
+						vscode.window.showInformationMessage('排除文件夹设置已更新');
+						this.refresh();
+					}
+				}
+			),
+			new CalendarItem(
+				`日记路径: ${config.dailyNotesPath}`,
+				vscode.TreeItemCollapsibleState.None,
+				'action',
+				async () => {
+					const input = await vscode.window.showInputBox({
+						prompt: '输入日记存储路径',
+						value: config.dailyNotesPath,
+						placeHolder: '相对路径或绝对路径'
+					});
+					if (input !== undefined) {
+						const newConfig = { ...config, dailyNotesPath: input };
+						await saveMementoConfig(notesPath, newConfig);
+						vscode.window.showInformationMessage('日记路径已更新');
+						this.refresh();
+					}
+				}
+			),
+			new CalendarItem(
+				`日记文件名格式: ${config.dailyNoteFileNameFormat}`,
+				vscode.TreeItemCollapsibleState.None,
+				'action',
+				async () => {
+					const input = await vscode.window.showInputBox({
+						prompt: '输入日记文件名格式',
+						value: config.dailyNoteFileNameFormat,
+						placeHolder: '支持变量: {{year}}, {{month}}, {{day}}'
+					});
+					if (input !== undefined) {
+						const newConfig = { ...config, dailyNoteFileNameFormat: input };
+						await saveMementoConfig(notesPath, newConfig);
+						vscode.window.showInformationMessage('日记文件名格式已更新');
+						this.refresh();
+					}
+				}
+			),
+			new CalendarItem(
+				`日记模板路径: ${config.dailyNoteTemplatePath || '(使用默认模板)'}`,
+				vscode.TreeItemCollapsibleState.None,
+				'action',
+				async () => {
+					const input = await vscode.window.showInputBox({
+						prompt: '输入日记模板文件路径',
+						value: config.dailyNoteTemplatePath,
+						placeHolder: '相对路径或绝对路径，留空使用默认模板'
+					});
+					if (input !== undefined) {
+						const newConfig = { ...config, dailyNoteTemplatePath: input };
+						await saveMementoConfig(notesPath, newConfig);
+						vscode.window.showInformationMessage('日记模板路径已更新');
+						this.refresh();
+					}
+				}
+			),
+			new CalendarItem(
+				`周报路径: ${config.weeklyNotesPath}`,
+				vscode.TreeItemCollapsibleState.None,
+				'action',
+				async () => {
+					const input = await vscode.window.showInputBox({
+						prompt: '输入周报存储路径',
+						value: config.weeklyNotesPath,
+						placeHolder: '相对路径或绝对路径'
+					});
+					if (input !== undefined) {
+						const newConfig = { ...config, weeklyNotesPath: input };
+						await saveMementoConfig(notesPath, newConfig);
+						vscode.window.showInformationMessage('周报路径已更新');
+						this.refresh();
+					}
+				}
+			),
+			new CalendarItem(
+				`周报文件名格式: ${config.weeklyNoteFileNameFormat}`,
+				vscode.TreeItemCollapsibleState.None,
+				'action',
+				async () => {
+					const input = await vscode.window.showInputBox({
+						prompt: '输入周报文件名格式',
+						value: config.weeklyNoteFileNameFormat,
+						placeHolder: '支持变量: {{year}}, {{week}}'
+					});
+					if (input !== undefined) {
+						const newConfig = { ...config, weeklyNoteFileNameFormat: input };
+						await saveMementoConfig(notesPath, newConfig);
+						vscode.window.showInformationMessage('周报文件名格式已更新');
+						this.refresh();
+					}
+				}
+			),
+			new CalendarItem(
+				`周报模板路径: ${config.weeklyNoteTemplatePath || '(使用默认模板)'}`,
+				vscode.TreeItemCollapsibleState.None,
+				'action',
+				async () => {
+					const input = await vscode.window.showInputBox({
+						prompt: '输入周报模板文件路径',
+						value: config.weeklyNoteTemplatePath,
+						placeHolder: '相对路径或绝对路径，留空使用默认模板'
+					});
+					if (input !== undefined) {
+						const newConfig = { ...config, weeklyNoteTemplatePath: input };
+						await saveMementoConfig(notesPath, newConfig);
+						vscode.window.showInformationMessage('周报模板路径已更新');
+						this.refresh();
+					}
+				}
+			),
+			new CalendarItem(
+				'🔧 填充 Front Matter Date 字段',
+				vscode.TreeItemCollapsibleState.None,
+				'action',
+				() => vscode.commands.executeCommand('memento.fillFrontMatterDate')
+			)
+		];
 	}
 }
 
@@ -715,6 +868,11 @@ export function activate(context: vscode.ExtensionContext) {
 		mainProvider.switchToCalendarView();
 	});
 
+	const switchToSettingsViewDisposable = vscode.commands.registerCommand('memento.switchToSettingsView', () => {
+		console.log('Switch to settings view command triggered');
+		mainProvider.switchToSettingsView();
+	});
+
 	const refreshDisposable = vscode.commands.registerCommand('memento.refreshMdFiles', () => {
 		console.log('Refresh command triggered');
 		mainProvider.refresh();
@@ -722,6 +880,13 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const executeCalendarActionDisposable = vscode.commands.registerCommand('memento.executeCalendarAction', (item: CalendarItem) => {
 		console.log('Execute calendar action command triggered');
+		if (item.action) {
+			item.action();
+		}
+	});
+
+	const executeSettingActionDisposable = vscode.commands.registerCommand('memento.executeSettingAction', (item: CalendarItem) => {
+		console.log('Execute setting action command triggered');
 		if (item.action) {
 			item.action();
 		}
@@ -769,8 +934,10 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(switchToFileViewDisposable);
 	context.subscriptions.push(switchToTagViewDisposable);
 	context.subscriptions.push(switchToCalendarViewDisposable);
+	context.subscriptions.push(switchToSettingsViewDisposable);
 	context.subscriptions.push(refreshDisposable);
 	context.subscriptions.push(executeCalendarActionDisposable);
+	context.subscriptions.push(executeSettingActionDisposable);
 	context.subscriptions.push(revealInExplorerDisposable);
 	context.subscriptions.push(fillFrontMatterDateDisposable);
 	context.subscriptions.push(openDailyNoteDisposable);

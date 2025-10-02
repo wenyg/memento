@@ -3,10 +3,10 @@
   "displayName": "Memento",
   "description": "轻量级 Markdown 笔记管理插件，支持多视图、标签分类、日记周报和 Front Matter",
   "version": "0.0.1",
-  "publisher": "your-publisher-name",
+  "publisher": "wenyg",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/memento"
+    "url": "https://github.com/wenyg/memento"
   },
   "keywords": [
     "markdown",
@@ -64,8 +64,17 @@
         "icon": "$(calendar)"
       },
       {
+        "command": "memento.switchToSettingsView",
+        "title": "Settings",
+        "icon": "$(gear)"
+      },
+      {
         "command": "memento.revealInExplorer",
         "title": "在资源管理器中显示"
+      },
+      {
+        "command": "memento.executeSettingAction",
+        "title": "Execute Setting Action"
       },
       {
         "command": "memento.fillFrontMatterDate",
@@ -120,9 +129,14 @@
           "group": "navigation@3"
         },
         {
-          "command": "memento.refreshMdFiles",
+          "command": "memento.switchToSettingsView",
           "when": "view == mementoMainView",
           "group": "navigation@4"
+        },
+        {
+          "command": "memento.refreshMdFiles",
+          "when": "view == mementoMainView",
+          "group": "navigation@5"
         }
       ],
       "view/item/context": [
