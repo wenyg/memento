@@ -104,15 +104,14 @@ class MdFilesProvider implements vscode.TreeDataProvider<MdFileItem> {
 	}
 
 	private async _loadMarkdownFiles(): Promise<void> {
-		const workspaceFolders = vscode.workspace.workspaceFolders;
-		if (!workspaceFolders) {
-			console.log('MdFilesProvider: No workspace folders');
-			this.mdFiles = [];
-			return;
-		}
-
 		try {
-			const rootPath = workspaceFolders[0].uri.fsPath;
+			const rootPath = await getNotesRootPath();
+			if (!rootPath) {
+				console.log('MdFilesProvider: No notes path available');
+				this.mdFiles = [];
+				return;
+			}
+
 			console.log('MdFilesProvider: Searching in:', rootPath);
 			const mdFiles = await findMarkdownFiles(rootPath);
 			console.log('MdFilesProvider: Found files:', mdFiles.length);
@@ -194,15 +193,14 @@ class TagTreeProvider implements vscode.TreeDataProvider<TagItem> {
 	}
 
 	private async _loadMarkdownFiles(): Promise<void> {
-		const workspaceFolders = vscode.workspace.workspaceFolders;
-		if (!workspaceFolders) {
-			console.log('TagTreeProvider: No workspace folders');
-			this.mdFiles = [];
-			return;
-		}
-
 		try {
-			const rootPath = workspaceFolders[0].uri.fsPath;
+			const rootPath = await getNotesRootPath();
+			if (!rootPath) {
+				console.log('TagTreeProvider: No notes path available');
+				this.mdFiles = [];
+				return;
+			}
+
 			console.log('TagTreeProvider: Searching in:', rootPath);
 			const mdFiles = await findMarkdownFilesWithTags(rootPath);
 			console.log('TagTreeProvider: Found files:', mdFiles.length);
@@ -349,6 +347,73 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem> 
 		} else {
 			return this.tagProvider.getChildren(element as TagItem);
 		}
+	}
+}
+
+async function getNotesRootPath(): Promise<string | null> {
+	const config = vscode.workspace.getConfiguration('memento');
+	const configuredPath: string = config.get('notesPath', '');
+
+	// If user configured a notes path, use it
+	if (configuredPath) {
+		// Check if the path exists
+		try {
+			const stats = await fs.promises.stat(configuredPath);
+			if (stats.isDirectory()) {
+				// Check if this path is in any workspace folder
+				await checkAndSuggestAddToWorkspace(configuredPath);
+				return configuredPath;
+			} else {
+				vscode.window.showErrorMessage(`配置的笔记路径不是一个有效的目录: ${configuredPath}`);
+				return null;
+			}
+		} catch (error) {
+			vscode.window.showErrorMessage(`配置的笔记路径不存在: ${configuredPath}`);
+			return null;
+		}
+	}
+
+	// Otherwise, use the first workspace folder
+	const workspaceFolders = vscode.workspace.workspaceFolders;
+	if (!workspaceFolders || workspaceFolders.length === 0) {
+		return null;
+	}
+
+	return workspaceFolders[0].uri.fsPath;
+}
+
+async function checkAndSuggestAddToWorkspace(notesPath: string): Promise<void> {
+	const workspaceFolders = vscode.workspace.workspaceFolders;
+
+	// Check if notes path is already in workspace
+	if (workspaceFolders) {
+		for (const folder of workspaceFolders) {
+			if (folder.uri.fsPath === notesPath) {
+				return; // Already in workspace
+			}
+		}
+	}
+
+	// Not in workspace, suggest adding it
+	const answer = await vscode.window.showInformationMessage(
+		`笔记目录 "${notesPath}" 不在当前工作区中。添加到工作区可以使用 VSCode 的查找和文件管理功能。`,
+		'添加到工作区',
+		'暂不添加'
+	);
+
+	if (answer === '添加到工作区') {
+		const folderUri = vscode.Uri.file(notesPath);
+		const workspaceFolder: vscode.WorkspaceFolder = {
+			uri: folderUri,
+			name: path.basename(notesPath),
+			index: workspaceFolders ? workspaceFolders.length : 0
+		};
+
+		vscode.workspace.updateWorkspaceFolders(
+			workspaceFolders ? workspaceFolders.length : 0,
+			0,
+			workspaceFolder
+		);
 	}
 }
 

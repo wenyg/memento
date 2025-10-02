@@ -82,6 +82,11 @@
     "configuration": {
       "title": "Memento",
       "properties": {
+        "memento.notesPath": {
+          "type": "string",
+          "default": "",
+          "description": "笔记根目录的绝对路径（留空则使用当前工作区）"
+        },
         "memento.excludeFolders": {
           "type": "array",
           "default": ["node_modules", ".git"],
