@@ -66,11 +66,6 @@ class TagItem extends vscode.TreeItem {
 			this.description = `${tagInfo.files.length} files`;
 			this.contextValue = 'tag';
 			this.iconPath = new vscode.ThemeIcon('tag');
-			this.command = {
-				command: 'memento.showTagFiles',
-				title: 'Show Tag Files',
-				arguments: [tagInfo]
-			};
 		}
 	}
 }
@@ -222,6 +217,7 @@ class TagTreeProvider implements vscode.TreeDataProvider<TagItem> {
 
 	private buildTagTree(): void {
 		const tagMap = new Map<string, TagInfo>();
+		const rootTags = new Set<string>();
 
 		// Process all files and their tags
 		for (const file of this.mdFiles) {
@@ -230,18 +226,18 @@ class TagTreeProvider implements vscode.TreeDataProvider<TagItem> {
 			}
 
 			for (const tag of file.tags) {
-				this.addTagToTree(tag, file, tagMap);
+				this.addTagToTree(tag, file, tagMap, rootTags);
 			}
 		}
 
-		// Convert map to tree structure
-		this.tagTree = Array.from(tagMap.values()).filter(tagInfo => !tagInfo.tag.includes('/'));
+		// Convert map to tree structure - only get root level tags
+		this.tagTree = Array.from(rootTags).map(rootTag => tagMap.get(rootTag)!);
 
 		// Sort tags alphabetically
 		this.sortTagTree(this.tagTree);
 	}
 
-	private addTagToTree(tag: string, file: MdFileInfo, tagMap: Map<string, TagInfo>): void {
+	private addTagToTree(tag: string, file: MdFileInfo, tagMap: Map<string, TagInfo>, rootTags: Set<string>): void {
 		const parts = tag.split('/');
 		let currentPath = '';
 
@@ -249,6 +245,11 @@ class TagTreeProvider implements vscode.TreeDataProvider<TagItem> {
 			const part = parts[i];
 			const parentPath = currentPath;
 			currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+			// Track root level tags
+			if (i === 0) {
+				rootTags.add(currentPath);
+			}
 
 			if (!tagMap.has(currentPath)) {
 				tagMap.set(currentPath, {
@@ -270,8 +271,9 @@ class TagTreeProvider implements vscode.TreeDataProvider<TagItem> {
 			// Link parent-child relationships
 			if (parentPath) {
 				const parentTagInfo = tagMap.get(parentPath)!;
-				if (!parentTagInfo.children!.some(child => child.tag === part)) {
-					parentTagInfo.children!.push(tagInfo);
+				const childTagInfo = tagMap.get(currentPath)!;
+				if (!parentTagInfo.children!.some(child => child === childTagInfo)) {
+					parentTagInfo.children!.push(childTagInfo);
 				}
 			}
 		}
@@ -350,9 +352,6 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem> 
 	}
 }
 
-// Global WebView panel for tag files
-let tagFilesPanel: vscode.WebviewPanel | undefined;
-
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
@@ -408,15 +407,9 @@ export function activate(context: vscode.ExtensionContext) {
 		mainProvider.refresh();
 	});
 
-	const showTagFilesDisposable = vscode.commands.registerCommand('memento.showTagFiles', (tagInfo: TagInfo) => {
-		console.log('Show tag files command triggered for tag:', tagInfo.tag);
-		showTagFilesInEditor(tagInfo);
-	});
-
 	context.subscriptions.push(switchToFileViewDisposable);
 	context.subscriptions.push(switchToTagViewDisposable);
 	context.subscriptions.push(refreshDisposable);
-	context.subscriptions.push(showTagFilesDisposable);
 }
 
 async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birthtime: Date, relativePath: string, displayTitle: string}>> {
@@ -485,17 +478,30 @@ async function findMarkdownFilesWithTags(dir: string): Promise<MdFileInfo[]> {
 	return mdFiles;
 }
 
+function removeCodeBlocks(content: string): string {
+	// Remove fenced code blocks (```...```)
+	let result = content.replace(/```[\s\S]*?```/g, '');
+
+	// Remove inline code (`...`)
+	result = result.replace(/`[^`]+`/g, '');
+
+	return result;
+}
+
 async function extractTagsFromFile(filePath: string): Promise<string[]> {
 	try {
 		const content = await fs.promises.readFile(filePath, 'utf-8');
 		const tags: string[] = [];
+
+		// Remove code blocks to avoid matching tags in code
+		const contentWithoutCode = removeCodeBlocks(content);
 
 		// Match #tag or #level1/level2 patterns, supporting Chinese characters
 		// \p{L} matches any Unicode letter (including Chinese), \p{N} matches any Unicode number
 		const tagRegex = /#([\p{L}\p{N}_\-\/]+)/gu;
 		let match;
 
-		while ((match = tagRegex.exec(content)) !== null) {
+		while ((match = tagRegex.exec(contentWithoutCode)) !== null) {
 			const tag = match[1];
 			if (!tags.includes(tag)) {
 				tags.push(tag);
@@ -513,8 +519,11 @@ async function extractFirstHeading(filePath: string): Promise<string> {
 	try {
 		const content = await fs.promises.readFile(filePath, 'utf-8');
 
+		// Remove code blocks to avoid matching headings in code
+		const contentWithoutCode = removeCodeBlocks(content);
+
 		// Match first level 1 heading (# title)
-		const headingMatch = content.match(/^#\s+(.+)$/m);
+		const headingMatch = contentWithoutCode.match(/^#\s+(.+)$/m);
 		if (headingMatch) {
 			return headingMatch[1].trim();
 		}
@@ -528,342 +537,6 @@ async function extractFirstHeading(filePath: string): Promise<string> {
 		return path.basename(filePath, '.md');
 	}
 }
-
-function collectAllTagFiles(tagInfo: TagInfo): MdFileInfo[] {
-	const allFiles: MdFileInfo[] = [];
-
-	// Add files from current tag
-	allFiles.push(...tagInfo.files);
-
-	// Recursively add files from child tags
-	if (tagInfo.children) {
-		for (const childTag of tagInfo.children) {
-			allFiles.push(...collectAllTagFiles(childTag));
-		}
-	}
-
-	return allFiles;
-}
-
-// 移除自定义 markdown 转换，改用专业库
-
-async function showTagFilesInEditor(tagInfo: TagInfo): Promise<void> {
-	try {
-		const allFiles = collectAllTagFiles(tagInfo);
-
-		if (allFiles.length === 0) {
-			vscode.window.showInformationMessage(`No files found for tag "${tagInfo.tag}"`);
-			return;
-		}
-
-		// Sort files by creation time (newest first)
-		const sortedFiles = allFiles.sort((a, b) => b.birthtime.getTime() - a.birthtime.getTime());
-
-		// Create or reuse WebView panel
-		if (!tagFilesPanel) {
-			tagFilesPanel = vscode.window.createWebviewPanel(
-				'tagFiles',
-				`Tag Files`,
-				vscode.ViewColumn.Beside,
-				{
-					enableScripts: true,
-					retainContextWhenHidden: true
-				}
-			);
-
-			// Handle panel disposal
-			tagFilesPanel.onDidDispose(() => {
-				tagFilesPanel = undefined;
-			});
-
-			// Handle messages from the webview
-			tagFilesPanel.webview.onDidReceiveMessage(
-				async (message) => {
-					switch (message.command) {
-						case 'editFile':
-							try {
-								const fileUri = vscode.Uri.file(message.path);
-								// 在主编辑器区域打开文件，不影响侧边栏的查看窗口
-								await vscode.window.showTextDocument(fileUri, {
-									viewColumn: vscode.ViewColumn.One, // 在主编辑器区域打开
-									preserveFocus: false, // 获得焦点，方便编辑
-									preview: false // 不使用预览模式，确保文件保持打开状态
-								});
-							} catch (error) {
-								console.error('Error opening file:', error);
-								vscode.window.showErrorMessage(`Failed to open file: ${message.path}`);
-							}
-							break;
-					}
-				}
-			);
-		}
-
-		// Update the panel title and reveal it
-		tagFilesPanel.title = `Tag: ${tagInfo.tag}`;
-		tagFilesPanel.reveal(vscode.ViewColumn.Beside);
-
-		// Process files and read raw content (rendering will be done in React)
-		const processedFiles = [];
-		for (const file of sortedFiles) {
-			try {
-				// Read the file content
-				const fileContent = await fs.promises.readFile(file.path, 'utf-8');
-
-				processedFiles.push({
-					...file,
-					rawContent: fileContent
-				});
-
-			} catch (error) {
-				console.error(`Error reading file ${file.path}:`, error);
-				processedFiles.push({
-					...file,
-					rawContent: 'Error reading file content',
-					error: true
-				});
-			}
-		}
-
-		// Create the complete HTML with React
-		const html = `
-			<!DOCTYPE html>
-			<html lang="en">
-			<head>
-				<meta charset="UTF-8">
-				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-				<title>Tag: ${tagInfo.tag}</title>
-				<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-				<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-				<script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
-				<script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
-				<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
-				<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
-				<style>
-					body {
-						font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-						background: white;
-						margin: 0;
-						padding: 20px;
-						color: #333;
-						line-height: 1.6;
-					}
-					.container {
-						max-width: 800px;
-						margin: 0 auto;
-					}
-					.header {
-						margin-bottom: 30px;
-						text-align: center;
-					}
-					.header h1 {
-						margin: 0;
-						font-size: 2em;
-						color: #333;
-					}
-					.file-count {
-						color: #666;
-						margin-top: 10px;
-					}
-					.file-separator {
-						border: none;
-						border-top: 1px solid #ccc;
-						margin: 40px 0;
-					}
-					.file-header {
-						display: flex;
-						justify-content: space-between;
-						align-items: center;
-						margin: 20px 0 10px 0;
-					}
-					.file-title {
-						font-size: 1.5em;
-						font-weight: 600;
-						color: #333;
-						margin: 0;
-					}
-					.edit-btn {
-						background: #007acc;
-						color: white;
-						border: none;
-						padding: 6px 12px;
-						border-radius: 4px;
-						cursor: pointer;
-						font-size: 0.8em;
-						font-weight: 500;
-						transition: background-color 0.2s;
-					}
-					.edit-btn:hover {
-						background: #005a9e;
-					}
-					.file-meta {
-						color: #666;
-						font-size: 0.9em;
-						margin-bottom: 20px;
-						font-family: monospace;
-					}
-					.markdown-content {
-						margin-bottom: 20px;
-					}
-					.markdown-content h1, .markdown-content h2, .markdown-content h3 {
-						margin-top: 20px;
-						margin-bottom: 10px;
-					}
-					.markdown-content pre {
-						background: #f8f9fa;
-						padding: 15px;
-						border-radius: 5px;
-						overflow-x: auto;
-					}
-					.markdown-content code {
-						background: #f8f9fa;
-						padding: 2px 4px;
-						border-radius: 3px;
-						font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-					}
-					.markdown-content pre code {
-						background: transparent;
-						padding: 0;
-					}
-					.markdown-content blockquote {
-						border-left: 4px solid #ddd;
-						margin: 0;
-						padding: 0 15px;
-						color: #666;
-					}
-					.markdown-content table {
-						border-collapse: collapse;
-						width: 100%;
-						margin: 15px 0;
-					}
-					.markdown-content table th,
-					.markdown-content table td {
-						border: 1px solid #ddd;
-						padding: 8px 12px;
-						text-align: left;
-					}
-					.markdown-content table th {
-						background: #f8f9fa;
-						font-weight: 600;
-					}
-				</style>
-			</head>
-			<body>
-				<div id="root"></div>
-
-				<script type="text/babel">
-					const { useState, useEffect } = React;
-
-					// 配置 marked
-					marked.setOptions({
-						highlight: function(code, lang) {
-							if (lang && hljs.getLanguage(lang)) {
-								try {
-									return hljs.highlight(code, { language: lang }).value;
-								} catch (err) {
-									console.warn('Highlight error:', err);
-								}
-							}
-							return hljs.highlightAuto(code).value;
-						},
-						langPrefix: 'hljs language-',
-						breaks: true,
-						gfm: true
-					});
-
-					// 文件数据
-					const filesData = ${JSON.stringify(processedFiles)};
-
-					// Markdown 渲染组件
-					const MarkdownRenderer = ({ content }) => {
-						const [htmlContent, setHtmlContent] = useState('');
-
-						useEffect(() => {
-							if (content && content !== 'Error reading file content') {
-								try {
-									const html = marked.parse(content);
-									setHtmlContent(html);
-
-									// 高亮代码块
-									setTimeout(() => {
-										document.querySelectorAll('pre code').forEach((block) => {
-											if (!block.classList.contains('hljs')) {
-												hljs.highlightElement(block);
-											}
-										});
-									}, 100);
-								} catch (error) {
-									console.error('Markdown parsing error:', error);
-									setHtmlContent(\`<p>Error parsing markdown: \${error.message}</p>\`);
-								}
-							} else {
-								setHtmlContent('<p>Error reading file content</p>');
-							}
-						}, [content]);
-
-						return <div className="markdown-content" dangerouslySetInnerHTML={{ __html: htmlContent }} />;
-					};
-
-					// 编辑函数
-					const handleEditFile = (filePath) => {
-						// 通过 VSCode API 打开文件编辑器
-						if (window.acquireVsCodeApi) {
-							const vscode = window.acquireVsCodeApi();
-							vscode.postMessage({
-								command: 'editFile',
-								path: filePath
-							});
-						}
-					};
-
-					// 主应用组件
-					const App = () => {
-						return (
-							<div className="container">
-								<div className="header">
-									<h1>${tagInfo.tag}</h1>
-									<div className="file-count">{filesData.length} files</div>
-								</div>
-
-								{filesData.map((file, index) => (
-									<div key={file.path}>
-										{index > 0 && <hr className="file-separator" />}
-										<div className="file-header">
-											<div className="file-title">{file.displayTitle}</div>
-											<button
-												className="edit-btn"
-												onClick={() => handleEditFile(file.path)}
-												title="在编辑器中打开此文件"
-											>
-												✏️ 编辑
-											</button>
-										</div>
-										<div className="file-meta">
-											{file.relativePath} • {new Date(file.birthtime).toLocaleDateString()}
-										</div>
-										<MarkdownRenderer content={file.rawContent} />
-									</div>
-								))}
-							</div>
-						);
-					};
-
-					// 渲染应用
-					ReactDOM.render(<App />, document.getElementById('root'));
-				</script>
-			</body>
-			</html>
-		`;
-
-		tagFilesPanel.webview.html = html;
-
-	} catch (error) {
-		console.error('Error showing tag files:', error);
-		vscode.window.showErrorMessage('Failed to show tag files');
-	}
-}
-
-
 
 // This method is called when your extension is deactivated
 export function deactivate() {}
