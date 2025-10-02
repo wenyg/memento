@@ -117,8 +117,8 @@ class MdFilesProvider implements vscode.TreeDataProvider<MdFileItem> {
 			const mdFiles = await findMarkdownFiles(rootPath);
 			console.log('MdFilesProvider: Found files:', mdFiles.length);
 
-			// Sort by creation time (oldest first)
-			this.mdFiles = mdFiles.sort((a, b) => a.birthtime.getTime() - b.birthtime.getTime());
+			// Sort by creation time (newest first)
+			this.mdFiles = mdFiles.sort((a, b) => b.birthtime.getTime() - a.birthtime.getTime());
 			console.log('MdFilesProvider: Files loaded and sorted');
 		} catch (error) {
 			console.error('MdFilesProvider: Error loading files:', error);
