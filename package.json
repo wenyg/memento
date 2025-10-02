@@ -50,8 +50,8 @@
       },
       {
         "command": "memento.switchToFileView",
-        "title": "Files by Time",
-        "icon": "$(clock)"
+        "title": "Recent Notes",
+        "icon": "$(file-text)"
       },
       {
         "command": "memento.switchToTagView",
