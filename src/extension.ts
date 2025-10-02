@@ -934,7 +934,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	const revealInExplorerDisposable = vscode.commands.registerCommand('memento.revealInExplorer', (item: MdFileItem | TagItem) => {
+	const revealInExplorerDisposable = vscode.commands.registerCommand('memento.revealInExplorer', async (item: MdFileItem | TagItem) => {
 		console.log('Reveal in explorer command triggered');
 		let filePath: string | undefined;
 
@@ -946,7 +946,16 @@ export function activate(context: vscode.ExtensionContext) {
 
 		if (filePath) {
 			const uri = vscode.Uri.file(filePath);
-			vscode.commands.executeCommand('revealInExplorer', uri);
+			try {
+				// First focus on the file explorer to ensure the folders view is initialized
+				await vscode.commands.executeCommand('workbench.files.action.focusFilesExplorer');
+				// Small delay to ensure the view is ready
+				await new Promise(resolve => setTimeout(resolve, 50));
+				// Then reveal the file in the explorer
+				await vscode.commands.executeCommand('revealInExplorer', uri);
+			} catch (error) {
+				console.error('Failed to reveal file in folders view:', error);
+			}
 		}
 	});
 

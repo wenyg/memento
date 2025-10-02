@@ -70,7 +70,7 @@
       },
       {
         "command": "memento.revealInExplorer",
-        "title": "在资源管理器中显示"
+        "title": "在文件夹中显示"
       },
       {
         "command": "memento.executeSettingAction",
