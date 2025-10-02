@@ -1,14 +1,31 @@
 {
   "name": "memento",
-  "displayName": "memento",
-  "description": "",
+  "displayName": "Memento",
+  "description": "轻量级 Markdown 笔记管理插件，支持多视图、标签分类、日记周报和 Front Matter",
   "version": "0.0.1",
+  "publisher": "your-publisher-name",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/memento"
+  },
+  "keywords": [
+    "markdown",
+    "notes",
+    "notebook",
+    "tags",
+    "daily notes",
+    "journal",
+    "front matter",
+    "笔记",
+    "日记"
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
   ],
+  "icon": "icon.png",
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
