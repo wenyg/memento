@@ -408,15 +408,15 @@ class CalendarProvider implements vscode.TreeDataProvider<CalendarItem> {
 			return [];
 		}
 
-		const config = vscode.workspace.getConfiguration('memento');
+		const config = await loadMementoConfig(notesPath);
 		let noteDir: string;
 
 		if (type === 'daily') {
-			const customPath: string = config.get('dailyNotesPath', '');
-			noteDir = customPath || path.join(notesPath, 'daily');
+			const customPath: string = config.dailyNotesPath;
+			noteDir = path.isAbsolute(customPath) ? customPath : path.join(notesPath, customPath);
 		} else {
-			const customPath: string = config.get('weeklyNotesPath', '');
-			noteDir = customPath || path.join(notesPath, 'weekly');
+			const customPath: string = config.weeklyNotesPath;
+			noteDir = path.isAbsolute(customPath) ? customPath : path.join(notesPath, customPath);
 		}
 
 		// Check if directory exists
@@ -728,10 +728,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(openWeeklyNoteDisposable);
 }
 
-function shouldExcludeFolder(folderName: string): boolean {
-	const config = vscode.workspace.getConfiguration('memento');
-	const excludeFolders: string[] = config.get('excludeFolders', ['node_modules', '.git']);
-
+function shouldExcludeFolder(folderName: string, excludeFolders: string[]): boolean {
 	// Check if folder starts with dot (hidden folders)
 	if (folderName.startsWith('.')) {
 		return true;
@@ -759,6 +756,7 @@ function shouldExcludeFolder(folderName: string): boolean {
 
 async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birthtime: Date, relativePath: string, displayTitle: string}>> {
 	const mdFiles: Array<{path: string, birthtime: Date, relativePath: string, displayTitle: string}> = [];
+	const config = await loadMementoConfig(dir);
 
 	async function scanDirectory(currentDir: string, rootDir: string) {
 		const items = await fs.promises.readdir(currentDir);
@@ -769,7 +767,7 @@ async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birt
 
 			if (stats.isDirectory()) {
 				// Skip excluded directories
-				if (!shouldExcludeFolder(item)) {
+				if (!shouldExcludeFolder(item, config.excludeFolders)) {
 					await scanDirectory(itemPath, rootDir);
 				}
 			} else if (stats.isFile() && path.extname(item).toLowerCase() === '.md') {
@@ -807,6 +805,7 @@ async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birt
 
 async function findMarkdownFilesWithTags(dir: string): Promise<MdFileInfo[]> {
 	const mdFiles: MdFileInfo[] = [];
+	const config = await loadMementoConfig(dir);
 
 	async function scanDirectory(currentDir: string, rootDir: string) {
 		const items = await fs.promises.readdir(currentDir);
@@ -817,7 +816,7 @@ async function findMarkdownFilesWithTags(dir: string): Promise<MdFileInfo[]> {
 
 			if (stats.isDirectory()) {
 				// Skip excluded directories
-				if (!shouldExcludeFolder(item)) {
+				if (!shouldExcludeFolder(item, config.excludeFolders)) {
 					await scanDirectory(itemPath, rootDir);
 				}
 			} else if (stats.isFile() && path.extname(item).toLowerCase() === '.md') {
@@ -1011,6 +1010,7 @@ async function extractFirstHeading(filePath: string): Promise<string> {
 
 async function fillFrontMatterDateForAllFiles(dir: string): Promise<void> {
 	const mdFiles: string[] = [];
+	const config = await loadMementoConfig(dir);
 
 	async function scanDirectory(currentDir: string) {
 		const items = await fs.promises.readdir(currentDir);
@@ -1020,7 +1020,7 @@ async function fillFrontMatterDateForAllFiles(dir: string): Promise<void> {
 			const stats = await fs.promises.stat(itemPath);
 
 			if (stats.isDirectory()) {
-				if (!shouldExcludeFolder(item)) {
+				if (!shouldExcludeFolder(item, config.excludeFolders)) {
 					await scanDirectory(itemPath);
 				}
 			} else if (stats.isFile() && path.extname(item).toLowerCase() === '.md') {
@@ -1091,7 +1091,7 @@ async function openPeriodicNote(type: 'daily' | 'weekly'): Promise<void> {
 		return;
 	}
 
-	const config = vscode.workspace.getConfiguration('memento');
+	const config = await loadMementoConfig(notesPath);
 	const now = new Date();
 
 	let noteDir: string;
@@ -1101,16 +1101,16 @@ async function openPeriodicNote(type: 'daily' | 'weekly'): Promise<void> {
 	let dateStr: string;
 
 	if (type === 'daily') {
-		const customPath: string = config.get('dailyNotesPath', '');
-		noteDir = customPath || path.join(notesPath, 'daily');
+		noteDir = path.isAbsolute(config.dailyNotesPath)
+			? config.dailyNotesPath
+			: path.join(notesPath, config.dailyNotesPath);
 
 		const year = now.getFullYear();
 		const month = String(now.getMonth() + 1).padStart(2, '0');
 		const day = String(now.getDate()).padStart(2, '0');
 
 		// Get file name format
-		const fileNameFormat: string = config.get('dailyNoteFileNameFormat', '{{year}}-{{month}}-{{day}}.md');
-		fileName = fileNameFormat
+		fileName = config.dailyNoteFileNameFormat
 			.replace(/\{\{year\}\}/g, String(year))
 			.replace(/\{\{month\}\}/g, month)
 			.replace(/\{\{day\}\}/g, day);
@@ -1119,8 +1119,7 @@ async function openPeriodicNote(type: 'daily' | 'weekly'): Promise<void> {
 		title = `${year}年${month}月${day}日`;
 
 		// Load template from file or use default
-		const configTemplatePath: string = config.get('dailyNoteTemplatePath', '');
-		const resolvedTemplatePath = await resolveTemplatePath(configTemplatePath, notesPath);
+		const resolvedTemplatePath = await resolveTemplatePath(config.dailyNoteTemplatePath, notesPath);
 
 		if (resolvedTemplatePath) {
 			try {
@@ -1140,16 +1139,16 @@ async function openPeriodicNote(type: 'daily' | 'weekly'): Promise<void> {
 			.replace(/\{\{month\}\}/g, month)
 			.replace(/\{\{day\}\}/g, day);
 	} else {
-		const customPath: string = config.get('weeklyNotesPath', '');
-		noteDir = customPath || path.join(notesPath, 'weekly');
+		noteDir = path.isAbsolute(config.weeklyNotesPath)
+			? config.weeklyNotesPath
+			: path.join(notesPath, config.weeklyNotesPath);
 
 		const year = now.getFullYear();
 		const week = getWeekNumber(now);
 		const weekPadded = String(week).padStart(2, '0');
 
 		// Get file name format
-		const fileNameFormat: string = config.get('weeklyNoteFileNameFormat', '{{year}}-W{{week}}.md');
-		fileName = fileNameFormat
+		fileName = config.weeklyNoteFileNameFormat
 			.replace(/\{\{year\}\}/g, String(year))
 			.replace(/\{\{week\}\}/g, weekPadded);
 
@@ -1157,8 +1156,7 @@ async function openPeriodicNote(type: 'daily' | 'weekly'): Promise<void> {
 		title = `${year}年第${week}周`;
 
 		// Load template from file or use default
-		const configTemplatePath: string = config.get('weeklyNoteTemplatePath', '');
-		const resolvedTemplatePath = await resolveTemplatePath(configTemplatePath, notesPath);
+		const resolvedTemplatePath = await resolveTemplatePath(config.weeklyNoteTemplatePath, notesPath);
 
 		if (resolvedTemplatePath) {
 			try {
