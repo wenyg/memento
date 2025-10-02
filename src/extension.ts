@@ -946,16 +946,23 @@ export function activate(context: vscode.ExtensionContext) {
 
 		if (filePath) {
 			const uri = vscode.Uri.file(filePath);
-			try {
-				// First focus on the file explorer to ensure the folders view is initialized
-				await vscode.commands.executeCommand('workbench.files.action.focusFilesExplorer');
-				// Small delay to ensure the view is ready
-				await new Promise(resolve => setTimeout(resolve, 50));
-				// Then reveal the file in the explorer
-				await vscode.commands.executeCommand('revealInExplorer', uri);
-			} catch (error) {
-				console.error('Failed to reveal file in folders view:', error);
+
+			// Check if the file's folder is in the workspace
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			const isInWorkspace = workspaceFolders?.some(folder =>
+				filePath!.startsWith(folder.uri.fsPath)
+			);
+
+			// If not in workspace, we need to ensure the notes root is added
+			if (!isInWorkspace) {
+				const notesPath = await getNotesRootPath();
+				if (notesPath) {
+					await checkAndSuggestAddToWorkspace(notesPath);
+				}
 			}
+
+			// Reveal in explorer
+			await vscode.commands.executeCommand('revealInExplorer', uri);
 		}
 	});
 
