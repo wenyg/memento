@@ -12,6 +12,13 @@ interface MdFileInfo {
 	tags?: string[];
 }
 
+interface FrontMatter {
+	title?: string;
+	date?: string;
+	tags?: string[];
+	[key: string]: any;
+}
+
 interface TagInfo {
 	tag: string;
 	files: MdFileInfo[];
@@ -488,10 +495,24 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	const fillFrontMatterDateDisposable = vscode.commands.registerCommand('memento.fillFrontMatterDate', async () => {
+		console.log('Fill Front Matter Date command triggered');
+		const notesPath = await getNotesRootPath();
+		if (!notesPath) {
+			vscode.window.showErrorMessage('未找到笔记目录');
+			return;
+		}
+
+		await fillFrontMatterDateForAllFiles(notesPath);
+		vscode.window.showInformationMessage('Front Matter Date 字段填充完成');
+		mainProvider.refresh();
+	});
+
 	context.subscriptions.push(switchToFileViewDisposable);
 	context.subscriptions.push(switchToTagViewDisposable);
 	context.subscriptions.push(refreshDisposable);
 	context.subscriptions.push(revealInExplorerDisposable);
+	context.subscriptions.push(fillFrontMatterDateDisposable);
 }
 
 function shouldExcludeFolder(folderName: string): boolean {
@@ -541,9 +562,25 @@ async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birt
 			} else if (stats.isFile() && path.extname(item).toLowerCase() === '.md') {
 				const relativePath = path.relative(rootDir, itemPath);
 				const displayTitle = await extractFirstHeading(itemPath);
+
+				// Try to get date from Front Matter
+				let birthtime = stats.birthtime;
+				try {
+					const content = await fs.promises.readFile(itemPath, 'utf-8');
+					const frontMatter = parseFrontMatter(content);
+					if (frontMatter && frontMatter.date) {
+						const parsedDate = new Date(frontMatter.date);
+						if (!isNaN(parsedDate.getTime())) {
+							birthtime = parsedDate;
+						}
+					}
+				} catch (error) {
+					// Use file birthtime if Front Matter parsing fails
+				}
+
 				mdFiles.push({
 					path: itemPath,
-					birthtime: stats.birthtime,
+					birthtime: birthtime,
 					relativePath: relativePath,
 					displayTitle: displayTitle
 				});
@@ -574,9 +611,25 @@ async function findMarkdownFilesWithTags(dir: string): Promise<MdFileInfo[]> {
 				const relativePath = path.relative(rootDir, itemPath);
 				const displayTitle = await extractFirstHeading(itemPath);
 				const tags = await extractTagsFromFile(itemPath);
+
+				// Try to get date from Front Matter
+				let birthtime = stats.birthtime;
+				try {
+					const content = await fs.promises.readFile(itemPath, 'utf-8');
+					const frontMatter = parseFrontMatter(content);
+					if (frontMatter && frontMatter.date) {
+						const parsedDate = new Date(frontMatter.date);
+						if (!isNaN(parsedDate.getTime())) {
+							birthtime = parsedDate;
+						}
+					}
+				} catch (error) {
+					// Use file birthtime if Front Matter parsing fails
+				}
+
 				mdFiles.push({
 					path: itemPath,
-					birthtime: stats.birthtime,
+					birthtime: birthtime,
 					relativePath: relativePath,
 					displayTitle: displayTitle,
 					tags: tags
@@ -587,6 +640,84 @@ async function findMarkdownFilesWithTags(dir: string): Promise<MdFileInfo[]> {
 
 	await scanDirectory(dir, dir);
 	return mdFiles;
+}
+
+function parseFrontMatter(content: string): FrontMatter | null {
+	if (!content.startsWith('---\n') && !content.startsWith('---\r\n')) {
+		return null;
+	}
+
+	const endMatch = content.match(/\n---\n|\r\n---\r\n|\n---\r\n|\r\n---\n/);
+	if (!endMatch || !endMatch.index) {
+		return null;
+	}
+
+	const frontMatterContent = content.substring(4, endMatch.index);
+	const frontMatter: FrontMatter = {};
+
+	// Simple YAML parser for common fields
+	const lines = frontMatterContent.split(/\r?\n/);
+	let i = 0;
+	while (i < lines.length) {
+		const line = lines[i];
+		const match = line.match(/^(\w+):\s*(.*)$/);
+		if (match) {
+			const key = match[1];
+			let value: any = match[2].trim();
+
+			// Handle inline array format: tags: [tag1, tag2]
+			if (value.startsWith('[') && value.endsWith(']')) {
+				value = value.slice(1, -1).split(',').map((v: string) => v.trim().replace(/['"]/g, ''));
+				frontMatter[key] = value;
+				i++;
+				continue;
+			}
+
+			// Handle multi-line array format:
+			// tags:
+			//   - tag1
+			//   - tag2
+			if (value === '' || value === '[]') {
+				const arrayItems: string[] = [];
+				i++;
+				while (i < lines.length) {
+					const nextLine = lines[i];
+					const arrayMatch = nextLine.match(/^\s*-\s*(.+)$/);
+					if (arrayMatch) {
+						let item = arrayMatch[1].trim();
+						// Remove quotes if present
+						if ((item.startsWith('"') && item.endsWith('"')) ||
+						    (item.startsWith("'") && item.endsWith("'"))) {
+							item = item.slice(1, -1);
+						}
+						arrayItems.push(item);
+						i++;
+					} else if (nextLine.trim() === '') {
+						// Skip empty lines
+						i++;
+					} else {
+						// End of array
+						break;
+					}
+				}
+				if (arrayItems.length > 0) {
+					frontMatter[key] = arrayItems;
+				}
+				continue;
+			}
+
+			// Remove quotes if present
+			if ((value.startsWith('"') && value.endsWith('"')) ||
+			    (value.startsWith("'") && value.endsWith("'"))) {
+				value = value.slice(1, -1);
+			}
+
+			frontMatter[key] = value;
+		}
+		i++;
+	}
+
+	return frontMatter;
 }
 
 function removeCodeBlocks(content: string): string {
@@ -603,6 +734,16 @@ async function extractTagsFromFile(filePath: string): Promise<string[]> {
 	try {
 		const content = await fs.promises.readFile(filePath, 'utf-8');
 		const tags: string[] = [];
+
+		// First, try to get tags from Front Matter
+		const frontMatter = parseFrontMatter(content);
+		if (frontMatter && frontMatter.tags) {
+			if (Array.isArray(frontMatter.tags)) {
+				tags.push(...frontMatter.tags);
+			} else if (typeof frontMatter.tags === 'string') {
+				tags.push(frontMatter.tags);
+			}
+		}
 
 		// Remove code blocks to avoid matching tags in code
 		const contentWithoutCode = removeCodeBlocks(content);
@@ -630,6 +771,12 @@ async function extractFirstHeading(filePath: string): Promise<string> {
 	try {
 		const content = await fs.promises.readFile(filePath, 'utf-8');
 
+		// First, try to get title from Front Matter
+		const frontMatter = parseFrontMatter(content);
+		if (frontMatter && frontMatter.title) {
+			return frontMatter.title;
+		}
+
 		// Remove code blocks to avoid matching headings in code
 		const contentWithoutCode = removeCodeBlocks(content);
 
@@ -646,6 +793,81 @@ async function extractFirstHeading(filePath: string): Promise<string> {
 		console.error(`Error reading file ${filePath}:`, error);
 		// Fallback to filename without extension
 		return path.basename(filePath, '.md');
+	}
+}
+
+async function fillFrontMatterDateForAllFiles(dir: string): Promise<void> {
+	const mdFiles: string[] = [];
+
+	async function scanDirectory(currentDir: string) {
+		const items = await fs.promises.readdir(currentDir);
+
+		for (const item of items) {
+			const itemPath = path.join(currentDir, item);
+			const stats = await fs.promises.stat(itemPath);
+
+			if (stats.isDirectory()) {
+				if (!shouldExcludeFolder(item)) {
+					await scanDirectory(itemPath);
+				}
+			} else if (stats.isFile() && path.extname(item).toLowerCase() === '.md') {
+				mdFiles.push(itemPath);
+			}
+		}
+	}
+
+	await scanDirectory(dir);
+
+	let processedCount = 0;
+	for (const filePath of mdFiles) {
+		const updated = await fillFrontMatterDateForFile(filePath);
+		if (updated) {
+			processedCount++;
+		}
+	}
+
+	console.log(`Processed ${processedCount} files`);
+}
+
+async function fillFrontMatterDateForFile(filePath: string): Promise<boolean> {
+	try {
+		const content = await fs.promises.readFile(filePath, 'utf-8');
+		const stats = await fs.promises.stat(filePath);
+
+		// Check if file already has front matter
+		const hasFrontMatter = content.startsWith('---\n');
+
+		let newContent: string;
+
+		if (hasFrontMatter) {
+			// Parse existing front matter
+			const endOfFrontMatter = content.indexOf('\n---\n', 4);
+			if (endOfFrontMatter === -1) {
+				return false; // Invalid front matter
+			}
+
+			const frontMatterContent = content.substring(4, endOfFrontMatter);
+			const restContent = content.substring(endOfFrontMatter + 5);
+
+			// Check if date field already exists
+			if (frontMatterContent.match(/^date:/m)) {
+				return false; // Already has date field
+			}
+
+			// Add date field
+			const dateStr = stats.birthtime.toISOString().split('T')[0];
+			newContent = `---\n${frontMatterContent}\ndate: ${dateStr}\n---\n${restContent}`;
+		} else {
+			// Create new front matter
+			const dateStr = stats.birthtime.toISOString().split('T')[0];
+			newContent = `---\ndate: ${dateStr}\n---\n\n${content}`;
+		}
+
+		await fs.promises.writeFile(filePath, newContent, 'utf-8');
+		return true;
+	} catch (error) {
+		console.error(`Error processing file ${filePath}:`, error);
+		return false;
 	}
 }
 
