@@ -611,7 +611,9 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 
 		// Root level - show categories
 		if (!element) {
+			const currentNotesPath = notesPath || '(使用当前工作区)';
 			return [
+				new CalendarItem(`📂 笔记根目录: ${currentNotesPath}`, vscode.TreeItemCollapsibleState.Collapsed, 'category'),
 				new CalendarItem('📁 文件过滤', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
 				new CalendarItem('📝 日记设置', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
 				new CalendarItem('📊 周报设置', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
@@ -620,6 +622,27 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 		}
 
 		// Category level - show settings
+		if (element.label.startsWith('📂 笔记根目录:')) {
+			const vscodeConfig = vscode.workspace.getConfiguration('memento');
+			const configuredPath: string = vscodeConfig.get('notesPath', '');
+
+			return [
+				new CalendarItem(
+					'打开 VSCode 设置',
+					vscode.TreeItemCollapsibleState.None,
+					'action',
+					() => {
+						vscode.commands.executeCommand('workbench.action.openSettings', 'memento.notesPath');
+					}
+				),
+				new CalendarItem(
+					configuredPath ? `当前路径: ${configuredPath}` : '提示: 在 VSCode 设置中搜索 "memento.notesPath" 进行配置',
+					vscode.TreeItemCollapsibleState.None,
+					'category'
+				)
+			];
+		}
+
 		if (element.label === '📁 文件过滤') {
 			return [
 				new CalendarItem(
