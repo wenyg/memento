@@ -915,6 +915,12 @@ export function activate(context: vscode.ExtensionContext) {
 		mainProvider.switchToSettingsView();
 	});
 
+	const openFolderViewDisposable = vscode.commands.registerCommand('memento.openFolderView', async () => {
+		console.log('Open folder view command triggered');
+		// Focus on the folders view (workspace folder tree)
+		await vscode.commands.executeCommand('workbench.explorer.fileView.focus');
+	});
+
 	const refreshDisposable = vscode.commands.registerCommand('memento.refreshMdFiles', () => {
 		console.log('Refresh command triggered');
 		mainProvider.refresh();
@@ -961,7 +967,11 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
-			// Reveal in explorer
+			// First ensure the folders view is focused and initialized
+			await vscode.commands.executeCommand('workbench.explorer.fileView.focus');
+			// Small delay to ensure view is ready
+			await new Promise(resolve => setTimeout(resolve, 100));
+			// Then reveal in explorer
 			await vscode.commands.executeCommand('revealInExplorer', uri);
 		}
 	});
@@ -993,6 +1003,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(switchToTagViewDisposable);
 	context.subscriptions.push(switchToCalendarViewDisposable);
 	context.subscriptions.push(switchToSettingsViewDisposable);
+	context.subscriptions.push(openFolderViewDisposable);
 	context.subscriptions.push(refreshDisposable);
 	context.subscriptions.push(executeCalendarActionDisposable);
 	context.subscriptions.push(executeSettingActionDisposable);

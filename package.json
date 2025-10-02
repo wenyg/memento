@@ -69,6 +69,11 @@
         "icon": "$(gear)"
       },
       {
+        "command": "memento.openFolderView",
+        "title": "Open Folder View",
+        "icon": "$(folder)"
+      },
+      {
         "command": "memento.revealInExplorer",
         "title": "在文件夹中显示"
       },
@@ -135,9 +140,14 @@
           "group": "navigation@4"
         },
         {
-          "command": "memento.refreshMdFiles",
+          "command": "memento.openFolderView",
           "when": "view == mementoMainView",
           "group": "navigation@5"
+        },
+        {
+          "command": "memento.refreshMdFiles",
+          "when": "view == mementoMainView",
+          "group": "navigation@6"
         }
       ],
       "view/item/context": [
