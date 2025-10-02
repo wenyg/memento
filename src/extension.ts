@@ -101,7 +101,7 @@ class CalendarItem extends vscode.TreeItem {
 	constructor(
 		public readonly label: string,
 		public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-		public readonly itemType: 'daily' | 'weekly' | 'action' | 'file' | 'category',
+		public readonly itemType: 'daily' | 'weekly' | 'action' | 'command' | 'file' | 'category',
 		public readonly action?: () => void,
 		public readonly filePath?: string
 	) {
@@ -109,7 +109,20 @@ class CalendarItem extends vscode.TreeItem {
 
 		if (itemType === 'action') {
 			this.contextValue = 'calendarAction';
-			// Don't set icon here, use inline button instead
+			this.iconPath = new vscode.ThemeIcon('edit');
+			this.command = {
+				command: 'memento.executeSettingAction',
+				title: 'Edit',
+				arguments: [this]
+			};
+		} else if (itemType === 'command') {
+			this.contextValue = 'calendarCommand';
+			this.iconPath = new vscode.ThemeIcon('play');
+			this.command = {
+				command: 'memento.executeSettingCommand',
+				title: 'Run',
+				arguments: [this]
+			};
 		} else if (itemType === 'file') {
 			this.contextValue = 'calendarFile';
 			this.iconPath = new vscode.ThemeIcon('markdown');
@@ -574,7 +587,7 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 			this.fileProvider.refresh();
 		} else if (this.currentMode === ViewMode.TAGS) {
 			this.tagProvider.refresh();
-		} else {
+		} else if (this.currentMode === ViewMode.CALENDAR) {
 			this.calendarProvider.refresh();
 		}
 	}
@@ -627,6 +640,20 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 					'action',
 					() => {
 						vscode.commands.executeCommand('workbench.action.openSettings', 'memento.notesPath');
+					}
+				),
+				new CalendarItem(
+					'📂 在 VSCode 中打开笔记目录',
+					vscode.TreeItemCollapsibleState.None,
+					'command',
+					async () => {
+						const notesPath = await getNotesRootPath();
+						if (notesPath) {
+							const uri = vscode.Uri.file(notesPath);
+							await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+						} else {
+							vscode.window.showErrorMessage('未找到笔记目录');
+						}
 					}
 				)
 			];
@@ -778,7 +805,7 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 				new CalendarItem(
 					'填充 Front Matter Date 字段',
 					vscode.TreeItemCollapsibleState.None,
-					'action',
+					'command',
 					() => vscode.commands.executeCommand('memento.fillFrontMatterDate')
 				)
 			];
@@ -923,42 +950,10 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	const revealInExplorerDisposable = vscode.commands.registerCommand('memento.revealInExplorer', async (item: MdFileItem | TagItem) => {
-		console.log('Reveal in explorer command triggered');
-		let filePath: string | undefined;
-
-		if (item instanceof MdFileItem) {
-			filePath = item.fileInfo.path;
-		} else if (item instanceof TagItem && item.isFile && item.fileInfo) {
-			filePath = item.fileInfo.path;
-		}
-
-		if (filePath) {
-			const uri = vscode.Uri.file(filePath);
-			try {
-				// Try to reveal in explorer directly
-				await vscode.commands.executeCommand('revealInExplorer', uri);
-			} catch (error) {
-				// If it fails (e.g., file not in workspace), suggest adding to workspace
-				const notesPath = await getNotesRootPath();
-				if (notesPath) {
-					const action = await vscode.window.showWarningMessage(
-						'文件不在工作区中，无法在资源管理器中显示。是否将笔记目录添加到工作区？',
-						'添加到工作区',
-						'取消'
-					);
-					if (action === '添加到工作区') {
-						const added = vscode.workspace.updateWorkspaceFolders(
-							vscode.workspace.workspaceFolders?.length || 0,
-							0,
-							{ uri: vscode.Uri.file(notesPath) }
-						);
-						if (added) {
-							vscode.window.showInformationMessage('已添加笔记目录到工作区');
-						}
-					}
-				}
-			}
+	const executeSettingCommandDisposable = vscode.commands.registerCommand('memento.executeSettingCommand', (item: CalendarItem) => {
+		console.log('Execute setting command triggered');
+		if (item.action) {
+			item.action();
 		}
 	});
 
@@ -1123,7 +1118,7 @@ tags: []
 	context.subscriptions.push(refreshDisposable);
 	context.subscriptions.push(executeCalendarActionDisposable);
 	context.subscriptions.push(executeSettingActionDisposable);
-	context.subscriptions.push(revealInExplorerDisposable);
+	context.subscriptions.push(executeSettingCommandDisposable);
 	context.subscriptions.push(fillFrontMatterDateDisposable);
 	context.subscriptions.push(openDailyNoteDisposable);
 	context.subscriptions.push(openWeeklyNoteDisposable);

@@ -69,13 +69,14 @@
         "icon": "$(gear)"
       },
       {
-        "command": "memento.revealInExplorer",
-        "title": "在文件夹中显示"
-      },
-      {
         "command": "memento.executeSettingAction",
         "title": "Edit",
         "icon": "$(edit)"
+      },
+      {
+        "command": "memento.executeSettingCommand",
+        "title": "Run",
+        "icon": "$(play)"
       },
       {
         "command": "memento.fillFrontMatterDate",
@@ -135,12 +136,12 @@
           "group": "navigation@3"
         },
         {
-          "command": "memento.switchToSettingsView",
+          "command": "memento.createNote",
           "when": "view == mementoMainView",
           "group": "navigation@4"
         },
         {
-          "command": "memento.createNote",
+          "command": "memento.switchToSettingsView",
           "when": "view == mementoMainView",
           "group": "navigation@5"
         },
@@ -150,18 +151,7 @@
           "group": "navigation@6"
         }
       ],
-      "view/item/context": [
-        {
-          "command": "memento.revealInExplorer",
-          "when": "view == mementoMainView && viewItem == mdFile",
-          "group": "navigation"
-        },
-        {
-          "command": "memento.executeSettingAction",
-          "when": "view == mementoMainView && viewItem == calendarAction",
-          "group": "inline"
-        }
-      ]
+      "view/item/context": []
     },
     "configuration": {
       "title": "Memento",
