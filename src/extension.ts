@@ -431,20 +431,69 @@ class CalendarProvider implements vscode.TreeDataProvider<CalendarItem> {
 			const files = await fs.promises.readdir(noteDir);
 			const mdFiles = files.filter(f => f.endsWith('.md'));
 
-			// Get file stats and sort by modification time (newest first)
-			const fileStats = await Promise.all(
-				mdFiles.map(async (fileName) => {
+			// Filter files based on naming pattern
+			const fileNamePattern = type === 'daily' ? config.dailyNoteFileNameFormat : config.weeklyNoteFileNameFormat;
+			const regexPattern = fileNamePattern
+				.replace(/\{\{year\}\}/g, '(\\d{4})')
+				.replace(/\{\{month\}\}/g, '(\\d{2})')
+				.replace(/\{\{day\}\}/g, '(\\d{2})')
+				.replace(/\{\{week\}\}/g, '(\\d{2})')
+				.replace(/\./g, '\\.');
+			const regex = new RegExp(`^${regexPattern}$`);
+
+			const fileStats = mdFiles
+				.map(fileName => {
+					const match = fileName.match(regex);
+					if (!match) {
+						return null;
+					}
+
 					const filePath = path.join(noteDir, fileName);
-					const stats = await fs.promises.stat(filePath);
+					let sortKey: string;
+
+					if (type === 'daily') {
+						// Extract year, month, day from filename based on pattern
+						const yearIndex = fileNamePattern.indexOf('{{year}}');
+						const monthIndex = fileNamePattern.indexOf('{{month}}');
+						const dayIndex = fileNamePattern.indexOf('{{day}}');
+
+						const positions = [
+							{ index: yearIndex, groupIndex: 1 },
+							{ index: monthIndex, groupIndex: 2 },
+							{ index: dayIndex, groupIndex: 3 }
+						].sort((a, b) => a.index - b.index);
+
+						const year = match[positions.findIndex(p => p.index === yearIndex) + 1];
+						const month = match[positions.findIndex(p => p.index === monthIndex) + 1];
+						const day = match[positions.findIndex(p => p.index === dayIndex) + 1];
+
+						sortKey = `${year}${month}${day}`;
+					} else {
+						// Extract year and week from filename based on pattern
+						const yearIndex = fileNamePattern.indexOf('{{year}}');
+						const weekIndex = fileNamePattern.indexOf('{{week}}');
+
+						const positions = [
+							{ index: yearIndex, groupIndex: 1 },
+							{ index: weekIndex, groupIndex: 2 }
+						].sort((a, b) => a.index - b.index);
+
+						const year = match[positions.findIndex(p => p.index === yearIndex) + 1];
+						const week = match[positions.findIndex(p => p.index === weekIndex) + 1];
+
+						sortKey = `${year}${week}`;
+					}
+
 					return {
 						fileName,
 						filePath,
-						mtime: stats.mtime
+						sortKey
 					};
 				})
-			);
+				.filter((f): f is { fileName: string; filePath: string; sortKey: string } => f !== null);
 
-			fileStats.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+			// Sort by date (newest first)
+			fileStats.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
 
 			// Return the most recent files
 			return fileStats.slice(0, limit).map(file => {
