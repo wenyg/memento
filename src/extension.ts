@@ -81,8 +81,9 @@ class CalendarItem extends vscode.TreeItem {
 	constructor(
 		public readonly label: string,
 		public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-		public readonly itemType: 'daily' | 'weekly' | 'action',
-		public readonly action?: () => void
+		public readonly itemType: 'daily' | 'weekly' | 'action' | 'file',
+		public readonly action?: () => void,
+		public readonly filePath?: string
 	) {
 		super(label, collapsibleState);
 
@@ -94,6 +95,17 @@ class CalendarItem extends vscode.TreeItem {
 				title: label,
 				arguments: [this]
 			};
+		} else if (itemType === 'file') {
+			this.contextValue = 'calendarFile';
+			this.iconPath = new vscode.ThemeIcon('markdown');
+			if (filePath) {
+				this.resourceUri = vscode.Uri.file(filePath);
+				this.command = {
+					command: 'vscode.open',
+					title: 'Open',
+					arguments: [this.resourceUri]
+				};
+			}
 		} else {
 			this.contextValue = 'calendarCategory';
 			this.iconPath = new vscode.ThemeIcon(itemType === 'daily' ? 'calendar' : 'notebook');
@@ -331,31 +343,104 @@ class CalendarProvider implements vscode.TreeDataProvider<CalendarItem> {
 		return element;
 	}
 
-	getChildren(element?: CalendarItem): Thenable<CalendarItem[]> {
+	async getChildren(element?: CalendarItem): Promise<CalendarItem[]> {
 		if (!element) {
 			// Root level - show Daily and Weekly categories
-			return Promise.resolve([
+			return [
 				new CalendarItem('Daily Notes', vscode.TreeItemCollapsibleState.Expanded, 'daily'),
 				new CalendarItem('Weekly Notes', vscode.TreeItemCollapsibleState.Expanded, 'weekly')
-			]);
+			];
 		} else {
-			// Show action button
+			// Show action button and recent files
 			if (element.itemType === 'daily') {
-				return Promise.resolve([
+				const items: CalendarItem[] = [
 					new CalendarItem('📝 打开今天的日记', vscode.TreeItemCollapsibleState.None, 'action', () => {
 						vscode.commands.executeCommand('memento.openDailyNote');
 					})
-				]);
+				];
+
+				// Load recent daily notes
+				const recentFiles = await this.loadRecentPeriodicNotes('daily', 10);
+				items.push(...recentFiles);
+
+				return items;
 			} else if (element.itemType === 'weekly') {
-				return Promise.resolve([
+				const items: CalendarItem[] = [
 					new CalendarItem('📊 打开本周的周报', vscode.TreeItemCollapsibleState.None, 'action', () => {
 						vscode.commands.executeCommand('memento.openWeeklyNote');
 					})
-				]);
+				];
+
+				// Load recent weekly notes
+				const recentFiles = await this.loadRecentPeriodicNotes('weekly', 10);
+				items.push(...recentFiles);
+
+				return items;
 			}
 		}
 
-		return Promise.resolve([]);
+		return [];
+	}
+
+	private async loadRecentPeriodicNotes(type: 'daily' | 'weekly', limit: number): Promise<CalendarItem[]> {
+		const notesPath = await getNotesRootPath();
+		if (!notesPath) {
+			return [];
+		}
+
+		const config = vscode.workspace.getConfiguration('memento');
+		let noteDir: string;
+
+		if (type === 'daily') {
+			const customPath: string = config.get('dailyNotesPath', '');
+			noteDir = customPath || path.join(notesPath, 'daily');
+		} else {
+			const customPath: string = config.get('weeklyNotesPath', '');
+			noteDir = customPath || path.join(notesPath, 'weekly');
+		}
+
+		// Check if directory exists
+		try {
+			await fs.promises.access(noteDir);
+		} catch {
+			return [];
+		}
+
+		// Read all files in the directory
+		try {
+			const files = await fs.promises.readdir(noteDir);
+			const mdFiles = files.filter(f => f.endsWith('.md'));
+
+			// Get file stats and sort by modification time (newest first)
+			const fileStats = await Promise.all(
+				mdFiles.map(async (fileName) => {
+					const filePath = path.join(noteDir, fileName);
+					const stats = await fs.promises.stat(filePath);
+					return {
+						fileName,
+						filePath,
+						mtime: stats.mtime
+					};
+				})
+			);
+
+			fileStats.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+
+			// Return the most recent files
+			return fileStats.slice(0, limit).map(file => {
+				const displayName = file.fileName.replace('.md', '');
+				return new CalendarItem(
+					displayName,
+					vscode.TreeItemCollapsibleState.None,
+					'file',
+					undefined,
+					file.filePath
+				);
+			});
+		} catch (error) {
+			console.error(`Error loading ${type} notes:`, error);
+			return [];
+		}
 	}
 }
 
