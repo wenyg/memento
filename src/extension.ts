@@ -788,6 +788,32 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 	}
 }
 
+async function getAllFolders(rootPath: string): Promise<string[]> {
+	const folders: string[] = [];
+	const config = await loadMementoConfig(rootPath);
+
+	async function scanDirectory(currentDir: string, relativePath: string = '') {
+		const items = await fs.promises.readdir(currentDir);
+
+		for (const item of items) {
+			const itemPath = path.join(currentDir, item);
+			const stats = await fs.promises.stat(itemPath);
+
+			if (stats.isDirectory()) {
+				// Skip excluded directories
+				if (!shouldExcludeFolder(item, config.excludeFolders)) {
+					const folderRelativePath = relativePath ? path.join(relativePath, item) : item;
+					folders.push(folderRelativePath);
+					await scanDirectory(itemPath, folderRelativePath);
+				}
+			}
+		}
+	}
+
+	await scanDirectory(rootPath);
+	return folders.sort();
+}
+
 async function getNotesRootPath(): Promise<string | null> {
 	const config = vscode.workspace.getConfiguration('memento');
 	const configuredPath: string = config.get('notesPath', '');
@@ -969,10 +995,62 @@ export function activate(context: vscode.ExtensionContext) {
 			return;
 		}
 
-		// Ask user for file name
+		// Step 1: Let user choose or create a folder
+		const folders = await getAllFolders(notesPath);
+
+		// Add special options
+		const folderOptions = [
+			{ label: '$(root-folder) 根目录', value: '' },
+			{ label: '$(new-folder) 新建文件夹...', value: '__new__' },
+			...folders.map(f => ({ label: `$(folder) ${f}`, value: f }))
+		];
+
+		const selectedFolder = await vscode.window.showQuickPick(
+			folderOptions.map(f => f.label),
+			{
+				placeHolder: '选择笔记存放的文件夹'
+			}
+		);
+
+		if (!selectedFolder) {
+			return; // User cancelled
+		}
+
+		let targetFolder = '';
+
+		if (selectedFolder.includes('新建文件夹')) {
+			// Create new folder
+			const newFolderName = await vscode.window.showInputBox({
+				prompt: '请输入新文件夹名称',
+				placeHolder: '例如: 工作笔记',
+				validateInput: (value) => {
+					if (!value) {
+						return '文件夹名称不能为空';
+					}
+					if (value.includes('/') || value.includes('\\')) {
+						return '文件夹名称不能包含 / 或 \\';
+					}
+					return null;
+				}
+			});
+
+			if (!newFolderName) {
+				return; // User cancelled
+			}
+
+			targetFolder = newFolderName;
+		} else if (selectedFolder.includes('根目录')) {
+			targetFolder = '';
+		} else {
+			// Extract folder name from label
+			const selectedOption = folderOptions.find(f => f.label === selectedFolder);
+			targetFolder = selectedOption?.value || '';
+		}
+
+		// Step 2: Ask user for file name
 		const fileName = await vscode.window.showInputBox({
 			prompt: '请输入笔记文件名',
-			placeHolder: '例如: 我的笔记.md 或 folder/我的笔记.md',
+			placeHolder: '例如: 我的笔记.md',
 			validateInput: (value) => {
 				if (!value) {
 					return '文件名不能为空';
@@ -989,7 +1067,9 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 		// Build full path
-		const fullPath = path.join(notesPath, fileName);
+		const fullPath = targetFolder
+			? path.join(notesPath, targetFolder, fileName)
+			: path.join(notesPath, fileName);
 
 		// Create directory if needed
 		const dirPath = path.dirname(fullPath);
