@@ -77,6 +77,30 @@ class TagItem extends vscode.TreeItem {
 	}
 }
 
+class CalendarItem extends vscode.TreeItem {
+	constructor(
+		public readonly label: string,
+		public readonly collapsibleState: vscode.TreeItemCollapsibleState,
+		public readonly itemType: 'daily' | 'weekly' | 'action',
+		public readonly action?: () => void
+	) {
+		super(label, collapsibleState);
+
+		if (itemType === 'action') {
+			this.contextValue = 'calendarAction';
+			this.iconPath = new vscode.ThemeIcon('add');
+			this.command = {
+				command: 'memento.executeCalendarAction',
+				title: label,
+				arguments: [this]
+			};
+		} else {
+			this.contextValue = 'calendarCategory';
+			this.iconPath = new vscode.ThemeIcon(itemType === 'daily' ? 'calendar' : 'notebook');
+		}
+	}
+}
+
 class MdFilesProvider implements vscode.TreeDataProvider<MdFileItem> {
 	private _onDidChangeTreeData: vscode.EventEmitter<MdFileItem | undefined | null | void> = new vscode.EventEmitter<MdFileItem | undefined | null | void>();
 	readonly onDidChangeTreeData: vscode.Event<MdFileItem | undefined | null | void> = this._onDidChangeTreeData.event;
@@ -295,24 +319,67 @@ class TagTreeProvider implements vscode.TreeDataProvider<TagItem> {
 	}
 }
 
-enum ViewMode {
-	FILES = 'files',
-	TAGS = 'tags'
+class CalendarProvider implements vscode.TreeDataProvider<CalendarItem> {
+	private _onDidChangeTreeData: vscode.EventEmitter<CalendarItem | undefined | null | void> = new vscode.EventEmitter<CalendarItem | undefined | null | void>();
+	readonly onDidChangeTreeData: vscode.Event<CalendarItem | undefined | null | void> = this._onDidChangeTreeData.event;
+
+	refresh(): void {
+		this._onDidChangeTreeData.fire();
+	}
+
+	getTreeItem(element: CalendarItem): vscode.TreeItem {
+		return element;
+	}
+
+	getChildren(element?: CalendarItem): Thenable<CalendarItem[]> {
+		if (!element) {
+			// Root level - show Daily and Weekly categories
+			return Promise.resolve([
+				new CalendarItem('Daily Notes', vscode.TreeItemCollapsibleState.Expanded, 'daily'),
+				new CalendarItem('Weekly Notes', vscode.TreeItemCollapsibleState.Expanded, 'weekly')
+			]);
+		} else {
+			// Show action button
+			if (element.itemType === 'daily') {
+				return Promise.resolve([
+					new CalendarItem('📝 打开今天的日记', vscode.TreeItemCollapsibleState.None, 'action', () => {
+						vscode.commands.executeCommand('memento.openDailyNote');
+					})
+				]);
+			} else if (element.itemType === 'weekly') {
+				return Promise.resolve([
+					new CalendarItem('📊 打开本周的周报', vscode.TreeItemCollapsibleState.None, 'action', () => {
+						vscode.commands.executeCommand('memento.openWeeklyNote');
+					})
+				]);
+			}
+		}
+
+		return Promise.resolve([]);
+	}
 }
 
-class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem> {
-	private _onDidChangeTreeData: vscode.EventEmitter<MdFileItem | TagItem | undefined | null | void> = new vscode.EventEmitter<MdFileItem | TagItem | undefined | null | void>();
-	readonly onDidChangeTreeData: vscode.Event<MdFileItem | TagItem | undefined | null | void> = this._onDidChangeTreeData.event;
+enum ViewMode {
+	FILES = 'files',
+	TAGS = 'tags',
+	CALENDAR = 'calendar'
+}
+
+class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem | CalendarItem> {
+	private _onDidChangeTreeData: vscode.EventEmitter<MdFileItem | TagItem | CalendarItem | undefined | null | void> = new vscode.EventEmitter<MdFileItem | TagItem | CalendarItem | undefined | null | void>();
+	readonly onDidChangeTreeData: vscode.Event<MdFileItem | TagItem | CalendarItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
 	private currentMode: ViewMode = ViewMode.FILES;
 	private fileProvider: MdFilesProvider;
 	private tagProvider: TagTreeProvider;
+	private calendarProvider: CalendarProvider;
 
 	constructor() {
 		this.fileProvider = new MdFilesProvider();
 		this.tagProvider = new TagTreeProvider();
+		this.calendarProvider = new CalendarProvider();
 
-		// Listen to changes from both providers
+		// Listen to changes from all providers
 		this.fileProvider.onDidChangeTreeData(() => {
 			if (this.currentMode === ViewMode.FILES) {
 				this._onDidChangeTreeData.fire();
@@ -321,6 +388,12 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem> 
 
 		this.tagProvider.onDidChangeTreeData(() => {
 			if (this.currentMode === ViewMode.TAGS) {
+				this._onDidChangeTreeData.fire();
+			}
+		});
+
+		this.calendarProvider.onDidChangeTreeData(() => {
+			if (this.currentMode === ViewMode.CALENDAR) {
 				this._onDidChangeTreeData.fire();
 			}
 		});
@@ -336,23 +409,32 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem> 
 		this._onDidChangeTreeData.fire();
 	}
 
+	switchToCalendarView(): void {
+		this.currentMode = ViewMode.CALENDAR;
+		this._onDidChangeTreeData.fire();
+	}
+
 	refresh(): void {
 		if (this.currentMode === ViewMode.FILES) {
 			this.fileProvider.refresh();
-		} else {
+		} else if (this.currentMode === ViewMode.TAGS) {
 			this.tagProvider.refresh();
+		} else {
+			this.calendarProvider.refresh();
 		}
 	}
 
-	getTreeItem(element: MdFileItem | TagItem): vscode.TreeItem {
+	getTreeItem(element: MdFileItem | TagItem | CalendarItem): vscode.TreeItem {
 		return element;
 	}
 
-	getChildren(element?: MdFileItem | TagItem): Thenable<(MdFileItem | TagItem)[]> {
+	getChildren(element?: MdFileItem | TagItem | CalendarItem): Thenable<(MdFileItem | TagItem | CalendarItem)[]> {
 		if (this.currentMode === ViewMode.FILES) {
 			return this.fileProvider.getChildren(element as MdFileItem);
-		} else {
+		} else if (this.currentMode === ViewMode.TAGS) {
 			return this.tagProvider.getChildren(element as TagItem);
+		} else {
+			return this.calendarProvider.getChildren(element as CalendarItem);
 		}
 	}
 }
@@ -474,9 +556,21 @@ export function activate(context: vscode.ExtensionContext) {
 		mainProvider.switchToTagView();
 	});
 
+	const switchToCalendarViewDisposable = vscode.commands.registerCommand('memento.switchToCalendarView', () => {
+		console.log('Switch to calendar view command triggered');
+		mainProvider.switchToCalendarView();
+	});
+
 	const refreshDisposable = vscode.commands.registerCommand('memento.refreshMdFiles', () => {
 		console.log('Refresh command triggered');
 		mainProvider.refresh();
+	});
+
+	const executeCalendarActionDisposable = vscode.commands.registerCommand('memento.executeCalendarAction', (item: CalendarItem) => {
+		console.log('Execute calendar action command triggered');
+		if (item.action) {
+			item.action();
+		}
 	});
 
 	const revealInExplorerDisposable = vscode.commands.registerCommand('memento.revealInExplorer', (item: MdFileItem | TagItem) => {
@@ -508,11 +602,25 @@ export function activate(context: vscode.ExtensionContext) {
 		mainProvider.refresh();
 	});
 
+	const openDailyNoteDisposable = vscode.commands.registerCommand('memento.openDailyNote', async () => {
+		console.log('Open daily note command triggered');
+		await openPeriodicNote('daily');
+	});
+
+	const openWeeklyNoteDisposable = vscode.commands.registerCommand('memento.openWeeklyNote', async () => {
+		console.log('Open weekly note command triggered');
+		await openPeriodicNote('weekly');
+	});
+
 	context.subscriptions.push(switchToFileViewDisposable);
 	context.subscriptions.push(switchToTagViewDisposable);
+	context.subscriptions.push(switchToCalendarViewDisposable);
 	context.subscriptions.push(refreshDisposable);
+	context.subscriptions.push(executeCalendarActionDisposable);
 	context.subscriptions.push(revealInExplorerDisposable);
 	context.subscriptions.push(fillFrontMatterDateDisposable);
+	context.subscriptions.push(openDailyNoteDisposable);
+	context.subscriptions.push(openWeeklyNoteDisposable);
 }
 
 function shouldExcludeFolder(folderName: string): boolean {
@@ -869,6 +977,91 @@ async function fillFrontMatterDateForFile(filePath: string): Promise<boolean> {
 		console.error(`Error processing file ${filePath}:`, error);
 		return false;
 	}
+}
+
+async function openPeriodicNote(type: 'daily' | 'weekly'): Promise<void> {
+	const notesPath = await getNotesRootPath();
+	if (!notesPath) {
+		vscode.window.showErrorMessage('未找到笔记目录');
+		return;
+	}
+
+	const config = vscode.workspace.getConfiguration('memento');
+	const now = new Date();
+
+	let noteDir: string;
+	let fileName: string;
+	let title: string;
+	let template: string;
+	let dateStr: string;
+
+	if (type === 'daily') {
+		const customPath: string = config.get('dailyNotesPath', '');
+		noteDir = customPath || path.join(notesPath, 'daily');
+
+		const year = now.getFullYear();
+		const month = String(now.getMonth() + 1).padStart(2, '0');
+		const day = String(now.getDate()).padStart(2, '0');
+
+		fileName = `${year}-${month}-${day}.md`;
+		dateStr = `${year}-${month}-${day}`;
+		title = `${year}年${month}月${day}日`;
+
+		template = config.get('dailyNoteTemplate', '---\ndate: {{date}}\ntitle: {{title}}\ntags: [daily]\n---\n\n# {{title}}\n\n');
+		template = template
+			.replace(/\{\{date\}\}/g, dateStr)
+			.replace(/\{\{title\}\}/g, title)
+			.replace(/\{\{year\}\}/g, String(year))
+			.replace(/\{\{month\}\}/g, month)
+			.replace(/\{\{day\}\}/g, day);
+	} else {
+		const customPath: string = config.get('weeklyNotesPath', '');
+		noteDir = customPath || path.join(notesPath, 'weekly');
+
+		const year = now.getFullYear();
+		const week = getWeekNumber(now);
+
+		fileName = `${year}-W${String(week).padStart(2, '0')}.md`;
+		dateStr = `${year}-W${String(week).padStart(2, '0')}`;
+		title = `${year}年第${week}周`;
+
+		template = config.get('weeklyNoteTemplate', '---\ndate: {{date}}\ntitle: {{title}}\ntags: [weekly]\n---\n\n# {{title}}\n\n## 本周总结\n\n## 下周计划\n\n');
+		template = template
+			.replace(/\{\{date\}\}/g, dateStr)
+			.replace(/\{\{title\}\}/g, title)
+			.replace(/\{\{year\}\}/g, String(year))
+			.replace(/\{\{week\}\}/g, String(week));
+	}
+
+	// Ensure directory exists
+	try {
+		await fs.promises.mkdir(noteDir, { recursive: true });
+	} catch (error) {
+		vscode.window.showErrorMessage(`无法创建目录: ${noteDir}`);
+		return;
+	}
+
+	const filePath = path.join(noteDir, fileName);
+
+	// Create file if it doesn't exist
+	try {
+		await fs.promises.access(filePath);
+	} catch {
+		// File doesn't exist, create it with template
+		await fs.promises.writeFile(filePath, template, 'utf-8');
+	}
+
+	// Open the file
+	const document = await vscode.workspace.openTextDocument(filePath);
+	await vscode.window.showTextDocument(document);
+}
+
+function getWeekNumber(date: Date): number {
+	const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+	const dayNum = d.getUTCDay() || 7;
+	d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+	const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+	return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
 // This method is called when your extension is deactivated
