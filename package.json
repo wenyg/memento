@@ -40,6 +40,10 @@
         "command": "memento.switchToTagView",
         "title": "Files by Tags",
         "icon": "$(tag)"
+      },
+      {
+        "command": "memento.revealInExplorer",
+        "title": "在资源管理器中显示"
       }
     ],
     "viewsContainers": {
@@ -76,6 +80,13 @@
           "command": "memento.refreshMdFiles",
           "when": "view == mementoMainView",
           "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "memento.revealInExplorer",
+          "when": "view == mementoMainView && viewItem == mdFile",
+          "group": "navigation"
         }
       ]
     },

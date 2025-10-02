@@ -472,9 +472,26 @@ export function activate(context: vscode.ExtensionContext) {
 		mainProvider.refresh();
 	});
 
+	const revealInExplorerDisposable = vscode.commands.registerCommand('memento.revealInExplorer', (item: MdFileItem | TagItem) => {
+		console.log('Reveal in explorer command triggered');
+		let filePath: string | undefined;
+
+		if (item instanceof MdFileItem) {
+			filePath = item.fileInfo.path;
+		} else if (item instanceof TagItem && item.isFile && item.fileInfo) {
+			filePath = item.fileInfo.path;
+		}
+
+		if (filePath) {
+			const uri = vscode.Uri.file(filePath);
+			vscode.commands.executeCommand('revealInExplorer', uri);
+		}
+	});
+
 	context.subscriptions.push(switchToFileViewDisposable);
 	context.subscriptions.push(switchToTagViewDisposable);
 	context.subscriptions.push(refreshDisposable);
+	context.subscriptions.push(revealInExplorerDisposable);
 }
 
 function shouldExcludeFolder(folderName: string): boolean {
