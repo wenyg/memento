@@ -412,6 +412,35 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(refreshDisposable);
 }
 
+function shouldExcludeFolder(folderName: string): boolean {
+	const config = vscode.workspace.getConfiguration('memento');
+	const excludeFolders: string[] = config.get('excludeFolders', ['node_modules', '.git']);
+
+	// Check if folder starts with dot (hidden folders)
+	if (folderName.startsWith('.')) {
+		return true;
+	}
+
+	// Check against exclude list (supports simple wildcard matching)
+	for (const pattern of excludeFolders) {
+		if (pattern.includes('*')) {
+			// Simple wildcard matching
+			const regexPattern = pattern.replace(/\*/g, '.*');
+			const regex = new RegExp(`^${regexPattern}$`);
+			if (regex.test(folderName)) {
+				return true;
+			}
+		} else {
+			// Exact match
+			if (folderName === pattern) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birthtime: Date, relativePath: string, displayTitle: string}>> {
 	const mdFiles: Array<{path: string, birthtime: Date, relativePath: string, displayTitle: string}> = [];
 
@@ -423,8 +452,8 @@ async function findMarkdownFiles(dir: string): Promise<Array<{path: string, birt
 			const stats = await fs.promises.stat(itemPath);
 
 			if (stats.isDirectory()) {
-				// Skip node_modules and .git directories
-				if (item !== 'node_modules' && item !== '.git' && !item.startsWith('.')) {
+				// Skip excluded directories
+				if (!shouldExcludeFolder(item)) {
 					await scanDirectory(itemPath, rootDir);
 				}
 			} else if (stats.isFile() && path.extname(item).toLowerCase() === '.md') {
@@ -455,8 +484,8 @@ async function findMarkdownFilesWithTags(dir: string): Promise<MdFileInfo[]> {
 			const stats = await fs.promises.stat(itemPath);
 
 			if (stats.isDirectory()) {
-				// Skip node_modules and .git directories
-				if (item !== 'node_modules' && item !== '.git' && !item.startsWith('.')) {
+				// Skip excluded directories
+				if (!shouldExcludeFolder(item)) {
 					await scanDirectory(itemPath, rootDir);
 				}
 			} else if (stats.isFile() && path.extname(item).toLowerCase() === '.md') {

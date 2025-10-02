@@ -78,6 +78,19 @@
           "group": "navigation@3"
         }
       ]
+    },
+    "configuration": {
+      "title": "Memento",
+      "properties": {
+        "memento.excludeFolders": {
+          "type": "array",
+          "default": ["node_modules", ".git"],
+          "description": "要排除的文件夹列表（支持通配符，如 'temp*'）",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     }
   },
   "scripts": {
