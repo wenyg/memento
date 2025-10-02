@@ -19,6 +19,26 @@ interface FrontMatter {
 	[key: string]: any;
 }
 
+interface MementoConfig {
+	excludeFolders: string[];
+	dailyNotesPath: string;
+	dailyNoteFileNameFormat: string;
+	dailyNoteTemplatePath: string;
+	weeklyNotesPath: string;
+	weeklyNoteFileNameFormat: string;
+	weeklyNoteTemplatePath: string;
+}
+
+const DEFAULT_CONFIG: MementoConfig = {
+	excludeFolders: ['node_modules', '.git'],
+	dailyNotesPath: 'daily',
+	dailyNoteFileNameFormat: '{{year}}-{{month}}-{{day}}.md',
+	dailyNoteTemplatePath: '',
+	weeklyNotesPath: 'weekly',
+	weeklyNoteFileNameFormat: '{{year}}-W{{week}}.md',
+	weeklyNoteTemplatePath: ''
+};
+
 interface TagInfo {
 	tag: string;
 	files: MdFileInfo[];
@@ -1179,6 +1199,36 @@ async function openPeriodicNote(type: 'daily' | 'weekly'): Promise<void> {
 	// Open the file
 	const document = await vscode.workspace.openTextDocument(filePath);
 	await vscode.window.showTextDocument(document);
+}
+
+async function loadMementoConfig(notesPath: string): Promise<MementoConfig> {
+	const configPath = path.join(notesPath, '.memento', 'config.json');
+
+	try {
+		await fs.promises.access(configPath);
+		const configContent = await fs.promises.readFile(configPath, 'utf-8');
+		const userConfig = JSON.parse(configContent);
+		return { ...DEFAULT_CONFIG, ...userConfig };
+	} catch (error) {
+		// Config file doesn't exist, return default config
+		return { ...DEFAULT_CONFIG };
+	}
+}
+
+async function saveMementoConfig(notesPath: string, config: MementoConfig): Promise<void> {
+	const configDir = path.join(notesPath, '.memento');
+	const configPath = path.join(configDir, 'config.json');
+
+	try {
+		// Ensure .memento directory exists
+		await fs.promises.mkdir(configDir, { recursive: true });
+
+		// Save config
+		await fs.promises.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+	} catch (error) {
+		console.error('Error saving config:', error);
+		throw error;
+	}
 }
 
 async function resolveTemplatePath(templatePath: string, notesPath: string): Promise<string> {

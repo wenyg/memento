@@ -61,6 +61,10 @@
       {
         "command": "memento.openWeeklyNote",
         "title": "Memento: 打开本周的周报"
+      },
+      {
+        "command": "memento.openSettings",
+        "title": "Memento: 打开设置"
       }
     ],
     "viewsContainers": {
@@ -119,44 +123,6 @@
           "type": "string",
           "default": "",
           "description": "笔记根目录的绝对路径（留空则使用当前工作区）"
-        },
-        "memento.excludeFolders": {
-          "type": "array",
-          "default": ["node_modules", ".git"],
-          "description": "要排除的文件夹列表（支持通配符，如 'temp*'）",
-          "items": {
-            "type": "string"
-          }
-        },
-        "memento.dailyNotesPath": {
-          "type": "string",
-          "default": "",
-          "description": "日记存储目录的绝对路径（留空则使用笔记根目录下的 daily 文件夹）"
-        },
-        "memento.dailyNoteFileNameFormat": {
-          "type": "string",
-          "default": "{{year}}-{{month}}-{{day}}.md",
-          "description": "日记文件名格式，支持变量：{{year}}, {{month}}, {{day}}"
-        },
-        "memento.dailyNoteTemplatePath": {
-          "type": "string",
-          "default": "",
-          "description": "日记模板文件路径，支持绝对路径或相对于笔记根目录的相对路径（留空则使用内置默认模板）"
-        },
-        "memento.weeklyNotesPath": {
-          "type": "string",
-          "default": "",
-          "description": "周报存储目录的绝对路径（留空则使用笔记根目录下的 weekly 文件夹）"
-        },
-        "memento.weeklyNoteFileNameFormat": {
-          "type": "string",
-          "default": "{{year}}-W{{week}}.md",
-          "description": "周报文件名格式，支持变量：{{year}}, {{week}}"
-        },
-        "memento.weeklyNoteTemplatePath": {
-          "type": "string",
-          "default": "",
-          "description": "周报模板文件路径，支持绝对路径或相对于笔记根目录的相对路径（留空则使用内置默认模板）"
         }
       }
     }
