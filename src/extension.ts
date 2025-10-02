@@ -101,7 +101,7 @@ class CalendarItem extends vscode.TreeItem {
 	constructor(
 		public readonly label: string,
 		public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-		public readonly itemType: 'daily' | 'weekly' | 'action' | 'file',
+		public readonly itemType: 'daily' | 'weekly' | 'action' | 'file' | 'category',
 		public readonly action?: () => void,
 		public readonly filePath?: string
 	) {
@@ -109,7 +109,7 @@ class CalendarItem extends vscode.TreeItem {
 
 		if (itemType === 'action') {
 			this.contextValue = 'calendarAction';
-			this.iconPath = new vscode.ThemeIcon('add');
+			this.iconPath = new vscode.ThemeIcon('edit');
 			this.command = {
 				command: 'memento.executeCalendarAction',
 				title: label,
@@ -597,11 +597,11 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 			return this.calendarProvider.getChildren(element as CalendarItem);
 		} else {
 			// SETTINGS mode
-			return this.getSettingsItems();
+			return this.getSettingsItems(element as CalendarItem);
 		}
 	}
 
-	private async getSettingsItems(): Promise<CalendarItem[]> {
+	private async getSettingsItems(element?: CalendarItem): Promise<CalendarItem[]> {
 		const notesPath = await getNotesRootPath();
 		if (!notesPath) {
 			return [];
@@ -609,140 +609,170 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 
 		const config = await loadMementoConfig(notesPath);
 
-		return [
-			new CalendarItem(
-				`排除文件夹: ${config.excludeFolders.join(', ')}`,
-				vscode.TreeItemCollapsibleState.None,
-				'action',
-				async () => {
-					const input = await vscode.window.showInputBox({
-						prompt: '输入要排除的文件夹（逗号分隔）',
-						value: config.excludeFolders.join(', '),
-						placeHolder: '例如: node_modules, .git, temp*'
-					});
-					if (input !== undefined) {
-						const newConfig = { ...config, excludeFolders: input.split(',').map(s => s.trim()).filter(s => s) };
-						await saveMementoConfig(notesPath, newConfig);
-						vscode.window.showInformationMessage('排除文件夹设置已更新');
-						this.refresh();
+		// Root level - show categories
+		if (!element) {
+			return [
+				new CalendarItem('📁 文件过滤', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
+				new CalendarItem('📝 日记设置', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
+				new CalendarItem('📊 周报设置', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
+				new CalendarItem('🔧 工具', vscode.TreeItemCollapsibleState.Collapsed, 'category')
+			];
+		}
+
+		// Category level - show settings
+		if (element.label === '📁 文件过滤') {
+			return [
+				new CalendarItem(
+					`排除文件夹: ${config.excludeFolders.join(', ')}`,
+					vscode.TreeItemCollapsibleState.None,
+					'action',
+					async () => {
+						const input = await vscode.window.showInputBox({
+							prompt: '输入要排除的文件夹（逗号分隔）',
+							value: config.excludeFolders.join(', '),
+							placeHolder: '例如: node_modules, .git, temp*'
+						});
+						if (input !== undefined) {
+							const newConfig = { ...config, excludeFolders: input.split(',').map(s => s.trim()).filter(s => s) };
+							await saveMementoConfig(notesPath, newConfig);
+							vscode.window.showInformationMessage('排除文件夹设置已更新');
+							this.refresh();
+						}
 					}
-				}
-			),
-			new CalendarItem(
-				`日记路径: ${config.dailyNotesPath}`,
-				vscode.TreeItemCollapsibleState.None,
-				'action',
-				async () => {
-					const input = await vscode.window.showInputBox({
-						prompt: '输入日记存储路径',
-						value: config.dailyNotesPath,
-						placeHolder: '相对路径或绝对路径'
-					});
-					if (input !== undefined) {
-						const newConfig = { ...config, dailyNotesPath: input };
-						await saveMementoConfig(notesPath, newConfig);
-						vscode.window.showInformationMessage('日记路径已更新');
-						this.refresh();
+				)
+			];
+		}
+
+		if (element.label === '📝 日记设置') {
+			return [
+				new CalendarItem(
+					`存储路径: ${config.dailyNotesPath}`,
+					vscode.TreeItemCollapsibleState.None,
+					'action',
+					async () => {
+						const input = await vscode.window.showInputBox({
+							prompt: '输入日记存储路径',
+							value: config.dailyNotesPath,
+							placeHolder: '相对路径或绝对路径'
+						});
+						if (input !== undefined) {
+							const newConfig = { ...config, dailyNotesPath: input };
+							await saveMementoConfig(notesPath, newConfig);
+							vscode.window.showInformationMessage('日记路径已更新');
+							this.refresh();
+						}
 					}
-				}
-			),
-			new CalendarItem(
-				`日记文件名格式: ${config.dailyNoteFileNameFormat}`,
-				vscode.TreeItemCollapsibleState.None,
-				'action',
-				async () => {
-					const input = await vscode.window.showInputBox({
-						prompt: '输入日记文件名格式',
-						value: config.dailyNoteFileNameFormat,
-						placeHolder: '支持变量: {{year}}, {{month}}, {{day}}'
-					});
-					if (input !== undefined) {
-						const newConfig = { ...config, dailyNoteFileNameFormat: input };
-						await saveMementoConfig(notesPath, newConfig);
-						vscode.window.showInformationMessage('日记文件名格式已更新');
-						this.refresh();
+				),
+				new CalendarItem(
+					`文件名格式: ${config.dailyNoteFileNameFormat}`,
+					vscode.TreeItemCollapsibleState.None,
+					'action',
+					async () => {
+						const input = await vscode.window.showInputBox({
+							prompt: '输入日记文件名格式',
+							value: config.dailyNoteFileNameFormat,
+							placeHolder: '支持变量: {{year}}, {{month}}, {{day}}, {{week}}, {{title}}, {{date}}'
+						});
+						if (input !== undefined) {
+							const newConfig = { ...config, dailyNoteFileNameFormat: input };
+							await saveMementoConfig(notesPath, newConfig);
+							vscode.window.showInformationMessage('日记文件名格式已更新');
+							this.refresh();
+						}
 					}
-				}
-			),
-			new CalendarItem(
-				`日记模板路径: ${config.dailyNoteTemplatePath || '(使用默认模板)'}`,
-				vscode.TreeItemCollapsibleState.None,
-				'action',
-				async () => {
-					const input = await vscode.window.showInputBox({
-						prompt: '输入日记模板文件路径',
-						value: config.dailyNoteTemplatePath,
-						placeHolder: '相对路径或绝对路径，留空使用默认模板'
-					});
-					if (input !== undefined) {
-						const newConfig = { ...config, dailyNoteTemplatePath: input };
-						await saveMementoConfig(notesPath, newConfig);
-						vscode.window.showInformationMessage('日记模板路径已更新');
-						this.refresh();
+				),
+				new CalendarItem(
+					`模板路径: ${config.dailyNoteTemplatePath || '(使用默认模板)'}`,
+					vscode.TreeItemCollapsibleState.None,
+					'action',
+					async () => {
+						const input = await vscode.window.showInputBox({
+							prompt: '输入日记模板文件路径',
+							value: config.dailyNoteTemplatePath,
+							placeHolder: '相对路径或绝对路径，留空使用默认模板'
+						});
+						if (input !== undefined) {
+							const newConfig = { ...config, dailyNoteTemplatePath: input };
+							await saveMementoConfig(notesPath, newConfig);
+							vscode.window.showInformationMessage('日记模板路径已更新');
+							this.refresh();
+						}
 					}
-				}
-			),
-			new CalendarItem(
-				`周报路径: ${config.weeklyNotesPath}`,
-				vscode.TreeItemCollapsibleState.None,
-				'action',
-				async () => {
-					const input = await vscode.window.showInputBox({
-						prompt: '输入周报存储路径',
-						value: config.weeklyNotesPath,
-						placeHolder: '相对路径或绝对路径'
-					});
-					if (input !== undefined) {
-						const newConfig = { ...config, weeklyNotesPath: input };
-						await saveMementoConfig(notesPath, newConfig);
-						vscode.window.showInformationMessage('周报路径已更新');
-						this.refresh();
+				)
+			];
+		}
+
+		if (element.label === '📊 周报设置') {
+			return [
+				new CalendarItem(
+					`存储路径: ${config.weeklyNotesPath}`,
+					vscode.TreeItemCollapsibleState.None,
+					'action',
+					async () => {
+						const input = await vscode.window.showInputBox({
+							prompt: '输入周报存储路径',
+							value: config.weeklyNotesPath,
+							placeHolder: '相对路径或绝对路径'
+						});
+						if (input !== undefined) {
+							const newConfig = { ...config, weeklyNotesPath: input };
+							await saveMementoConfig(notesPath, newConfig);
+							vscode.window.showInformationMessage('周报路径已更新');
+							this.refresh();
+						}
 					}
-				}
-			),
-			new CalendarItem(
-				`周报文件名格式: ${config.weeklyNoteFileNameFormat}`,
-				vscode.TreeItemCollapsibleState.None,
-				'action',
-				async () => {
-					const input = await vscode.window.showInputBox({
-						prompt: '输入周报文件名格式',
-						value: config.weeklyNoteFileNameFormat,
-						placeHolder: '支持变量: {{year}}, {{week}}'
-					});
-					if (input !== undefined) {
-						const newConfig = { ...config, weeklyNoteFileNameFormat: input };
-						await saveMementoConfig(notesPath, newConfig);
-						vscode.window.showInformationMessage('周报文件名格式已更新');
-						this.refresh();
+				),
+				new CalendarItem(
+					`文件名格式: ${config.weeklyNoteFileNameFormat}`,
+					vscode.TreeItemCollapsibleState.None,
+					'action',
+					async () => {
+						const input = await vscode.window.showInputBox({
+							prompt: '输入周报文件名格式',
+							value: config.weeklyNoteFileNameFormat,
+							placeHolder: '支持变量: {{year}}, {{month}}, {{day}}, {{week}}, {{title}}, {{date}}'
+						});
+						if (input !== undefined) {
+							const newConfig = { ...config, weeklyNoteFileNameFormat: input };
+							await saveMementoConfig(notesPath, newConfig);
+							vscode.window.showInformationMessage('周报文件名格式已更新');
+							this.refresh();
+						}
 					}
-				}
-			),
-			new CalendarItem(
-				`周报模板路径: ${config.weeklyNoteTemplatePath || '(使用默认模板)'}`,
-				vscode.TreeItemCollapsibleState.None,
-				'action',
-				async () => {
-					const input = await vscode.window.showInputBox({
-						prompt: '输入周报模板文件路径',
-						value: config.weeklyNoteTemplatePath,
-						placeHolder: '相对路径或绝对路径，留空使用默认模板'
-					});
-					if (input !== undefined) {
-						const newConfig = { ...config, weeklyNoteTemplatePath: input };
-						await saveMementoConfig(notesPath, newConfig);
-						vscode.window.showInformationMessage('周报模板路径已更新');
-						this.refresh();
+				),
+				new CalendarItem(
+					`模板路径: ${config.weeklyNoteTemplatePath || '(使用默认模板)'}`,
+					vscode.TreeItemCollapsibleState.None,
+					'action',
+					async () => {
+						const input = await vscode.window.showInputBox({
+							prompt: '输入周报模板文件路径',
+							value: config.weeklyNoteTemplatePath,
+							placeHolder: '相对路径或绝对路径，留空使用默认模板'
+						});
+						if (input !== undefined) {
+							const newConfig = { ...config, weeklyNoteTemplatePath: input };
+							await saveMementoConfig(notesPath, newConfig);
+							vscode.window.showInformationMessage('周报模板路径已更新');
+							this.refresh();
+						}
 					}
-				}
-			),
-			new CalendarItem(
-				'🔧 填充 Front Matter Date 字段',
-				vscode.TreeItemCollapsibleState.None,
-				'action',
-				() => vscode.commands.executeCommand('memento.fillFrontMatterDate')
-			)
-		];
+				)
+			];
+		}
+
+		if (element.label === '🔧 工具') {
+			return [
+				new CalendarItem(
+					'填充 Front Matter Date 字段',
+					vscode.TreeItemCollapsibleState.None,
+					'action',
+					() => vscode.commands.executeCommand('memento.fillFrontMatterDate')
+				)
+			];
+		}
+
+		return [];
 	}
 }
 
@@ -1324,12 +1354,15 @@ async function openPeriodicNote(type: 'daily' | 'weekly'): Promise<void> {
 		const year = now.getFullYear();
 		const month = String(now.getMonth() + 1).padStart(2, '0');
 		const day = String(now.getDate()).padStart(2, '0');
+		const week = getWeekNumber(now);
+		const weekPadded = String(week).padStart(2, '0');
 
 		// Get file name format
 		fileName = config.dailyNoteFileNameFormat
 			.replace(/\{\{year\}\}/g, String(year))
 			.replace(/\{\{month\}\}/g, month)
-			.replace(/\{\{day\}\}/g, day);
+			.replace(/\{\{day\}\}/g, day)
+			.replace(/\{\{week\}\}/g, weekPadded);
 
 		dateStr = `${year}-${month}-${day}`;
 		title = `${year}年${month}月${day}日`;
@@ -1353,19 +1386,24 @@ async function openPeriodicNote(type: 'daily' | 'weekly'): Promise<void> {
 			.replace(/\{\{title\}\}/g, title)
 			.replace(/\{\{year\}\}/g, String(year))
 			.replace(/\{\{month\}\}/g, month)
-			.replace(/\{\{day\}\}/g, day);
+			.replace(/\{\{day\}\}/g, day)
+			.replace(/\{\{week\}\}/g, weekPadded);
 	} else {
 		noteDir = path.isAbsolute(config.weeklyNotesPath)
 			? config.weeklyNotesPath
 			: path.join(notesPath, config.weeklyNotesPath);
 
 		const year = now.getFullYear();
+		const month = String(now.getMonth() + 1).padStart(2, '0');
+		const day = String(now.getDate()).padStart(2, '0');
 		const week = getWeekNumber(now);
 		const weekPadded = String(week).padStart(2, '0');
 
 		// Get file name format
 		fileName = config.weeklyNoteFileNameFormat
 			.replace(/\{\{year\}\}/g, String(year))
+			.replace(/\{\{month\}\}/g, month)
+			.replace(/\{\{day\}\}/g, day)
 			.replace(/\{\{week\}\}/g, weekPadded);
 
 		dateStr = `${year}-W${weekPadded}`;
@@ -1389,7 +1427,9 @@ async function openPeriodicNote(type: 'daily' | 'weekly'): Promise<void> {
 			.replace(/\{\{date\}\}/g, dateStr)
 			.replace(/\{\{title\}\}/g, title)
 			.replace(/\{\{year\}\}/g, String(year))
-			.replace(/\{\{week\}\}/g, String(week));
+			.replace(/\{\{month\}\}/g, month)
+			.replace(/\{\{day\}\}/g, day)
+			.replace(/\{\{week\}\}/g, weekPadded);
 	}
 
 	// Ensure directory exists
