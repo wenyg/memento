@@ -109,12 +109,7 @@ class CalendarItem extends vscode.TreeItem {
 
 		if (itemType === 'action') {
 			this.contextValue = 'calendarAction';
-			this.iconPath = new vscode.ThemeIcon('edit');
-			this.command = {
-				command: 'memento.executeCalendarAction',
-				title: label,
-				arguments: [this]
-			};
+			// Don't set icon here, use inline button instead
 		} else if (itemType === 'file') {
 			this.contextValue = 'calendarFile';
 			this.iconPath = new vscode.ThemeIcon('markdown');
@@ -611,9 +606,8 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 
 		// Root level - show categories
 		if (!element) {
-			const currentNotesPath = notesPath || '(使用当前工作区)';
 			return [
-				new CalendarItem(`📂 笔记根目录: ${currentNotesPath}`, vscode.TreeItemCollapsibleState.Collapsed, 'category'),
+				new CalendarItem('📂 笔记根目录', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
 				new CalendarItem('📁 文件过滤', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
 				new CalendarItem('📝 日记设置', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
 				new CalendarItem('📊 周报设置', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
@@ -622,23 +616,18 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 		}
 
 		// Category level - show settings
-		if (element.label.startsWith('📂 笔记根目录:')) {
+		if (element.label === '📂 笔记根目录') {
 			const vscodeConfig = vscode.workspace.getConfiguration('memento');
 			const configuredPath: string = vscodeConfig.get('notesPath', '');
 
 			return [
 				new CalendarItem(
-					'打开 VSCode 设置',
+					`路径: ${configuredPath || '(使用当前工作区)'}`,
 					vscode.TreeItemCollapsibleState.None,
 					'action',
 					() => {
 						vscode.commands.executeCommand('workbench.action.openSettings', 'memento.notesPath');
 					}
-				),
-				new CalendarItem(
-					configuredPath ? `当前路径: ${configuredPath}` : '提示: 在 VSCode 设置中搜索 "memento.notesPath" 进行配置',
-					vscode.TreeItemCollapsibleState.None,
-					'category'
 				)
 			];
 		}
@@ -646,7 +635,7 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 		if (element.label === '📁 文件过滤') {
 			return [
 				new CalendarItem(
-					`排除文件夹: ${config.excludeFolders.join(', ')}`,
+					`排除文件夹: ${config.excludeFolders.length > 0 ? config.excludeFolders.join(', ') : '(未设置)'}`,
 					vscode.TreeItemCollapsibleState.None,
 					'action',
 					async () => {
@@ -658,7 +647,7 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 						if (input !== undefined) {
 							const newConfig = { ...config, excludeFolders: input.split(',').map(s => s.trim()).filter(s => s) };
 							await saveMementoConfig(notesPath, newConfig);
-							vscode.window.showInformationMessage('排除文件夹设置已更新');
+							vscode.window.showInformationMessage('✓ 排除文件夹设置已更新');
 							this.refresh();
 						}
 					}
@@ -674,14 +663,14 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 					'action',
 					async () => {
 						const input = await vscode.window.showInputBox({
-							prompt: '输入日记存储路径',
+							prompt: '日记存储路径',
 							value: config.dailyNotesPath,
 							placeHolder: '相对路径或绝对路径'
 						});
 						if (input !== undefined) {
 							const newConfig = { ...config, dailyNotesPath: input };
 							await saveMementoConfig(notesPath, newConfig);
-							vscode.window.showInformationMessage('日记路径已更新');
+							vscode.window.showInformationMessage('✓ 日记路径已更新');
 							this.refresh();
 						}
 					}
@@ -692,14 +681,14 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 					'action',
 					async () => {
 						const input = await vscode.window.showInputBox({
-							prompt: '输入日记文件名格式',
+							prompt: '日记文件名格式',
 							value: config.dailyNoteFileNameFormat,
-							placeHolder: '支持变量: {{year}}, {{month}}, {{day}}, {{week}}, {{title}}, {{date}}'
+							placeHolder: '变量: {{year}} {{month}} {{day}} {{week}} {{title}} {{date}}'
 						});
 						if (input !== undefined) {
 							const newConfig = { ...config, dailyNoteFileNameFormat: input };
 							await saveMementoConfig(notesPath, newConfig);
-							vscode.window.showInformationMessage('日记文件名格式已更新');
+							vscode.window.showInformationMessage('✓ 日记文件名格式已更新');
 							this.refresh();
 						}
 					}
@@ -710,14 +699,14 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 					'action',
 					async () => {
 						const input = await vscode.window.showInputBox({
-							prompt: '输入日记模板文件路径',
+							prompt: '日记模板文件路径',
 							value: config.dailyNoteTemplatePath,
 							placeHolder: '相对路径或绝对路径，留空使用默认模板'
 						});
 						if (input !== undefined) {
 							const newConfig = { ...config, dailyNoteTemplatePath: input };
 							await saveMementoConfig(notesPath, newConfig);
-							vscode.window.showInformationMessage('日记模板路径已更新');
+							vscode.window.showInformationMessage('✓ 日记模板路径已更新');
 							this.refresh();
 						}
 					}
@@ -733,14 +722,14 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 					'action',
 					async () => {
 						const input = await vscode.window.showInputBox({
-							prompt: '输入周报存储路径',
+							prompt: '周报存储路径',
 							value: config.weeklyNotesPath,
 							placeHolder: '相对路径或绝对路径'
 						});
 						if (input !== undefined) {
 							const newConfig = { ...config, weeklyNotesPath: input };
 							await saveMementoConfig(notesPath, newConfig);
-							vscode.window.showInformationMessage('周报路径已更新');
+							vscode.window.showInformationMessage('✓ 周报路径已更新');
 							this.refresh();
 						}
 					}
@@ -751,14 +740,14 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 					'action',
 					async () => {
 						const input = await vscode.window.showInputBox({
-							prompt: '输入周报文件名格式',
+							prompt: '周报文件名格式',
 							value: config.weeklyNoteFileNameFormat,
-							placeHolder: '支持变量: {{year}}, {{month}}, {{day}}, {{week}}, {{title}}, {{date}}'
+							placeHolder: '变量: {{year}} {{month}} {{day}} {{week}} {{title}} {{date}}'
 						});
 						if (input !== undefined) {
 							const newConfig = { ...config, weeklyNoteFileNameFormat: input };
 							await saveMementoConfig(notesPath, newConfig);
-							vscode.window.showInformationMessage('周报文件名格式已更新');
+							vscode.window.showInformationMessage('✓ 周报文件名格式已更新');
 							this.refresh();
 						}
 					}
@@ -769,14 +758,14 @@ class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem |
 					'action',
 					async () => {
 						const input = await vscode.window.showInputBox({
-							prompt: '输入周报模板文件路径',
+							prompt: '周报模板文件路径',
 							value: config.weeklyNoteTemplatePath,
 							placeHolder: '相对路径或绝对路径，留空使用默认模板'
 						});
 						if (input !== undefined) {
 							const newConfig = { ...config, weeklyNoteTemplatePath: input };
 							await saveMementoConfig(notesPath, newConfig);
-							vscode.window.showInformationMessage('周报模板路径已更新');
+							vscode.window.showInformationMessage('✓ 周报模板路径已更新');
 							this.refresh();
 						}
 					}

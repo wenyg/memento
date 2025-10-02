@@ -74,7 +74,8 @@
       },
       {
         "command": "memento.executeSettingAction",
-        "title": "Execute Setting Action"
+        "title": "Edit",
+        "icon": "$(edit)"
       },
       {
         "command": "memento.fillFrontMatterDate",
@@ -144,6 +145,11 @@
           "command": "memento.revealInExplorer",
           "when": "view == mementoMainView && viewItem == mdFile",
           "group": "navigation"
+        },
+        {
+          "command": "memento.executeSettingAction",
+          "when": "view == mementoMainView && viewItem == calendarAction",
+          "group": "inline"
         }
       ]
     },
