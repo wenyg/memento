@@ -1,0 +1,71 @@
+---
+globs: *.ts,package.json
+description: VSCode 扩展开发规范和最佳实践
+---
+
+# VSCode 扩展开发规范
+
+## 扩展激活
+- 使用 `activationEvents: []` 实现即时激活
+- 在 `activate` 函数中注册所有命令和提供者
+- 使用 `context.subscriptions.push()` 管理资源
+
+## 命令注册
+```typescript
+// 标准命令注册模式
+const disposable = vscode.commands.registerCommand('memento.commandName', async () => {
+  try {
+    // 命令逻辑
+  } catch (error) {
+    vscode.window.showErrorMessage(`命令执行失败: ${error}`);
+  }
+});
+context.subscriptions.push(disposable);
+```
+
+## TreeDataProvider 实现
+- 必须实现 `onDidChangeTreeData` 事件
+- 使用 `_onDidChangeTreeData.fire()` 触发视图更新
+- 支持懒加载，只在需要时加载数据
+- 正确处理 `getChildren` 的异步操作
+
+## 视图配置
+- 在 `package.json` 中定义 `viewsContainers` 和 `views`
+- 使用有意义的 ID 和标题
+- 配置适当的 `when` 条件
+- 使用图标增强用户体验
+
+## 配置管理
+- 使用 `vscode.workspace.getConfiguration()` 获取配置
+- 提供合理的默认值
+- 支持工作区级别和用户级别配置
+- 配置变更时刷新相关视图
+
+## 文件操作
+- 使用 `vscode.Uri.file()` 处理文件路径
+- 使用 `vscode.workspace.openTextDocument()` 打开文件
+- 使用 `vscode.window.showTextDocument()` 显示文档
+- 正确处理文件不存在的情况
+
+## 用户交互
+- 使用 `vscode.window.showQuickPick()` 提供选择
+- 使用 `vscode.window.showInputBox()` 获取用户输入
+- 使用 `vscode.window.showInformationMessage()` 显示信息
+- 使用 `vscode.window.showErrorMessage()` 显示错误
+
+## 资源管理
+- 所有 disposable 对象都要添加到 context.subscriptions
+- 在 deactivate 函数中清理资源
+- 避免内存泄漏，及时释放事件监听器
+
+## 扩展包配置
+- 在 package.json 中正确配置 `engines.vscode`
+- 设置合适的 `categories` 和 `keywords`
+- 提供清晰的 `description` 和 `displayName`
+- 配置 `main` 入口点路径
+
+## 调试和日志
+- 使用 `console.log` 输出调试信息
+- 使用 `console.error` 输出错误信息
+- 在生产环境中避免过多的日志输出
+- 使用 VSCode 的调试功能测试扩展

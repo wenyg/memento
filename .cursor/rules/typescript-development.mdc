@@ -1,0 +1,64 @@
+---
+globs: *.ts,*.tsx
+description: TypeScript 开发规范和最佳实践
+---
+
+# TypeScript 开发规范
+
+## 代码风格
+- 使用 4 个空格缩进
+- 使用分号结尾
+- 使用双引号
+- 函数和类名使用 PascalCase
+- 变量和属性使用 camelCase
+- 常量使用 UPPER_SNAKE_CASE
+
+## 类型定义
+- 所有接口以 `I` 开头或使用描述性名称
+- 使用严格的类型检查（strict: true）
+- 避免使用 `any` 类型，优先使用具体类型
+- 使用联合类型而不是 `any`
+
+## 异步编程
+- 优先使用 `async/await` 而不是 Promise.then()
+- 所有异步函数都需要错误处理
+- 使用 `Promise<T>` 返回类型注解
+- 避免回调地狱，使用 async/await
+
+## 错误处理
+```typescript
+// 好的做法
+try {
+  const result = await someAsyncOperation();
+  return result;
+} catch (error) {
+  console.error('操作失败:', error);
+  throw error; // 或者返回默认值
+}
+
+// 避免
+someAsyncOperation().then(result => {
+  // 处理结果
+}).catch(error => {
+  // 错误处理
+});
+```
+
+## 接口设计
+- 接口应该简洁明了
+- 使用可选属性 `?` 而不是联合类型
+- 避免过深的嵌套结构
+- 使用泛型提高复用性
+
+## 文件组织
+- 一个文件一个主要类或功能
+- 相关功能放在同一个文件中
+- 使用命名空间避免全局污染
+- 导出时使用 `export` 关键字
+
+## VSCode 扩展特定规范
+- 使用 `vscode` 命名空间导入
+- 所有命令都需要注册到 context.subscriptions
+- 使用 `vscode.window.showErrorMessage` 显示错误
+- 使用 `vscode.window.showInformationMessage` 显示成功信息
+- TreeDataProvider 需要实现 `onDidChangeTreeData` 事件

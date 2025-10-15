@@ -1,0 +1,81 @@
+---
+globs: *.test.ts,*.test.js,test/**
+description: 测试规范和最佳实践
+---
+
+# 测试规范
+
+## 测试框架
+- 使用 VSCode 测试框架（@vscode/test-electron）
+- 使用 Mocha 作为测试运行器
+- 使用 TypeScript 编写测试
+
+## 测试文件组织
+- 测试文件以 `.test.ts` 结尾
+- 测试文件放在 `src/test/` 目录
+- 测试文件与源文件保持相同的目录结构
+
+## 单元测试
+- 测试所有公共函数
+- 测试边界条件和错误情况
+- 使用 mock 对象隔离依赖
+- 测试异步函数的正确性
+
+## 扩展测试
+- 测试命令注册和执行
+- 测试 TreeDataProvider 功能
+- 测试配置管理
+- 测试文件操作功能
+
+## 测试数据
+- 使用临时目录进行文件测试
+- 创建测试用的 Markdown 文件
+- 使用不同的 Front Matter 格式
+- 测试各种标签格式
+
+## 异步测试
+```typescript
+// 正确的异步测试
+it('should process files asynchronously', async () => {
+  const result = await processFiles(testDir);
+  expect(result).to.have.length(2);
+});
+
+// 避免
+it('should process files', (done) => {
+  processFiles(testDir).then(result => {
+    expect(result).to.have.length(2);
+    done();
+  });
+});
+```
+
+## Mock 和 Stub
+- 使用 sinon 进行 mock
+- Mock VSCode API 调用
+- Mock 文件系统操作
+- 隔离外部依赖
+
+## 测试覆盖率
+- 目标覆盖率 > 80%
+- 测试所有主要功能路径
+- 测试错误处理路径
+- 测试配置变更
+
+## 集成测试
+- 测试完整的用户工作流
+- 测试扩展激活和停用
+- 测试视图切换
+- 测试命令执行
+
+## 性能测试
+- 测试大量文件的处理性能
+- 测试内存使用情况
+- 测试响应时间
+- 避免阻塞 UI 线程
+
+## 测试环境
+- 使用测试专用的 VSCode 实例
+- 清理测试数据
+- 避免影响开发环境
+- 使用临时工作区
