@@ -40,5 +40,5 @@ export enum ViewMode {
     SETTINGS = 'settings'
 }
 
-export type CalendarItemType = 'daily' | 'weekly' | 'action' | 'command' | 'file' | 'category';
+export type CalendarItemType = 'daily' | 'weekly' | 'action' | 'command' | 'file' | 'category' | 'week-item' | 'daily-group';
 export type PeriodicNoteType = 'daily' | 'weekly';

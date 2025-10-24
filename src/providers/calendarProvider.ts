@@ -22,37 +22,42 @@ export class CalendarProvider implements vscode.TreeDataProvider<CalendarItem> {
 
     async getChildren(element?: CalendarItem): Promise<CalendarItem[]> {
         if (!element) {
-            // 根级别 - 显示日记和周报分类
-            return [
-                new CalendarItem('Daily Notes', vscode.TreeItemCollapsibleState.Expanded, 'daily'),
-                new CalendarItem('Weekly Notes', vscode.TreeItemCollapsibleState.Expanded, 'weekly')
+            // 根级别 - 显示最近的周报，每个周报可以展开显示对应的日报
+            const items: CalendarItem[] = [
+                new CalendarItem('📊 打开本周的周报', vscode.TreeItemCollapsibleState.None, 'action', () => {
+                    vscode.commands.executeCommand('memento.openWeeklyNote');
+                }),
+                new CalendarItem('📝 打开今天的日记', vscode.TreeItemCollapsibleState.None, 'action', () => {
+                    vscode.commands.executeCommand('memento.openDailyNote');
+                })
             ];
-        } else {
-            // 显示操作按钮和最近文件
-            if (element.itemType === 'daily') {
-                const items: CalendarItem[] = [
-                    new CalendarItem('📝 打开今天的日记', vscode.TreeItemCollapsibleState.None, 'action', () => {
-                        vscode.commands.executeCommand('memento.openDailyNote');
-                    })
-                ];
 
-                // 加载最近的日记
-                const recentFiles = await this.loadRecentPeriodicNotes('daily', 10);
-                items.push(...recentFiles);
+            // 加载最近的周报作为可展开项目
+            const recentWeeklyFiles = await this.loadRecentPeriodicNotes('weekly', 8);
+            const weeklyItems = [];
+            
+            for (const weekFile of recentWeeklyFiles) {
+                const weekItem = new CalendarItem(
+                    `📊 ${weekFile.label}`,
+                    vscode.TreeItemCollapsibleState.Collapsed,
+                    'week-item',
+                    undefined,
+                    weekFile.filePath
+                );
+                // 添加周数信息用于匹配日报
+                const weekInfo = await this.extractWeekInfo(weekFile.label);
+                (weekItem as any).weekInfo = weekInfo;
+                weeklyItems.push(weekItem);
+            }
 
-                return items;
-            } else if (element.itemType === 'weekly') {
-                const items: CalendarItem[] = [
-                    new CalendarItem('📊 打开本周的周报', vscode.TreeItemCollapsibleState.None, 'action', () => {
-                        vscode.commands.executeCommand('memento.openWeeklyNote');
-                    })
-                ];
-
-                // 加载最近的周报
-                const recentFiles = await this.loadRecentPeriodicNotes('weekly', 10);
-                items.push(...recentFiles);
-
-                return items;
+            items.push(...weeklyItems);
+            return items;
+        } else if (element.itemType === 'week-item') {
+            // 展开周报时显示对应周的日报
+            const weekInfo = (element as any).weekInfo;
+            if (weekInfo) {
+                const dailyItems = await this.loadDailyNotesForWeek(weekInfo.year, weekInfo.week);
+                return dailyItems;
             }
         }
 
@@ -167,5 +172,151 @@ export class CalendarProvider implements vscode.TreeDataProvider<CalendarItem> {
             console.error(`Error loading ${type} notes:`, error);
             return [];
         }
+    }
+
+    /**
+     * 从周报文件名中提取年份和周数信息（基于配置的文件名模板）
+     */
+    private async extractWeekInfo(fileName: string): Promise<{ year: number; week: number } | null> {
+        try {
+            const notesPath = await getNotesRootPath();
+            if (!notesPath) {
+                return null;
+            }
+
+            const config = await loadMementoConfig(notesPath);
+            const template = config.weeklyNoteFileNameFormat;
+            
+            // 移除 .md 后缀（如果存在）
+            const cleanFileName = fileName.replace(/\.md$/, '');
+            
+            // 将模板转换为正则表达式
+            const regexPattern = template
+                .replace(/\./g, '\\.')  // 转义点号
+                .replace(/\{\{year\}\}/g, '(\\d{4})')  // 年份：4位数字
+                .replace(/\{\{week\}\}/g, '(\\d{1,2})')  // 周数：1-2位数字
+                .replace(/\.md$/, '');  // 移除模板中的 .md 后缀
+            
+            const regex = new RegExp(`^${regexPattern}$`);
+            const match = cleanFileName.match(regex);
+            
+            if (match) {
+                // 找到年份和周数在模板中的位置
+                const yearIndex = template.indexOf('{{year}}');
+                const weekIndex = template.indexOf('{{week}}');
+                
+                let yearGroup = 1;
+                let weekGroup = 2;
+                
+                // 如果周数在年份之前，调整分组索引
+                if (weekIndex < yearIndex) {
+                    yearGroup = 2;
+                    weekGroup = 1;
+                }
+                
+                const year = parseInt(match[yearGroup]);
+                const week = parseInt(match[weekGroup]);
+                
+                return { year, week };
+            } else {
+                return null;
+            }
+        } catch (error) {
+            console.error(`[Calendar] 提取周报信息失败:`, error);
+            return null;
+        }
+    }
+
+    /**
+     * 加载指定周的所有日报
+     */
+    private async loadDailyNotesForWeek(year: number, week: number): Promise<CalendarItem[]> {
+        const notesPath = await getNotesRootPath();
+        if (!notesPath) {
+            return [];
+        }
+
+        const config = await loadMementoConfig(notesPath);
+        const customPath: string = config.dailyNotesPath;
+        const noteDir = path.isAbsolute(customPath) ? customPath : path.join(notesPath, customPath);
+
+        // 检查目录是否存在
+        try {
+            await fs.promises.access(noteDir);
+        } catch {
+            return [];
+        }
+
+        // 计算该周的日期范围
+        const weekDates = this.getWeekDates(year, week);
+        
+        try {
+            const files = await fs.promises.readdir(noteDir);
+            const mdFiles = files.filter(f => f.endsWith('.md'));
+
+            // 根据命名模式过滤该周的日报文件
+            const fileNamePattern = config.dailyNoteFileNameFormat;
+            const dailyFiles: CalendarItem[] = [];
+
+            for (const date of weekDates) {
+                const expectedFileName = fileNamePattern
+                    .replace(/\{\{year\}\}/g, date.getFullYear().toString())
+                    .replace(/\{\{month\}\}/g, String(date.getMonth() + 1).padStart(2, '0'))
+                    .replace(/\{\{day\}\}/g, String(date.getDate()).padStart(2, '0'));
+
+                if (mdFiles.includes(expectedFileName)) {
+                    const filePath = path.join(noteDir, expectedFileName);
+                    const displayName = `📝 ${date.getMonth() + 1}/${date.getDate()} ${this.getWeekdayName(date.getDay())}`;
+                    
+                    dailyFiles.push(new CalendarItem(
+                        displayName,
+                        vscode.TreeItemCollapsibleState.None,
+                        'file',
+                        undefined,
+                        filePath
+                    ));
+                }
+            }
+
+            return dailyFiles;
+        } catch (error) {
+            console.error(`Error loading daily notes for week ${year}-W${week}:`, error);
+            return [];
+        }
+    }
+
+    /**
+     * 获取指定年份和周数对应的日期数组（ISO 8601 标准）
+     */
+    private getWeekDates(year: number, week: number): Date[] {
+        // ISO 8601 标准：每年第一周是包含1月4日的那一周
+        const jan4 = new Date(year, 0, 4);
+        const jan4DayOfWeek = jan4.getDay() || 7; // 周日=7, 周一=1
+        
+        // 计算第一周的周一
+        const firstMonday = new Date(jan4);
+        firstMonday.setDate(jan4.getDate() - jan4DayOfWeek + 1);
+        
+        // 计算目标周的周一
+        const targetMonday = new Date(firstMonday);
+        targetMonday.setDate(firstMonday.getDate() + (week - 1) * 7);
+
+        // 生成该周的7天日期
+        const weekDates: Date[] = [];
+        for (let i = 0; i < 7; i++) {
+            const date = new Date(targetMonday);
+            date.setDate(targetMonday.getDate() + i);
+            weekDates.push(date);
+        }
+
+        return weekDates;
+    }
+
+    /**
+     * 获取星期几的中文名称
+     */
+    private getWeekdayName(dayOfWeek: number): string {
+        const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+        return weekdays[dayOfWeek];
     }
 }

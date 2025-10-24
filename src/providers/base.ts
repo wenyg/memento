@@ -94,6 +94,21 @@ export class CalendarItem extends vscode.TreeItem {
                     arguments: [this.resourceUri]
                 };
             }
+        } else if (itemType === 'week-item') {
+            this.contextValue = 'calendarWeekItem';
+            this.iconPath = new vscode.ThemeIcon('notebook');
+            // 周报项目可以点击打开
+            if (filePath) {
+                this.resourceUri = vscode.Uri.file(filePath);
+                this.command = {
+                    command: 'vscode.open',
+                    title: 'Open',
+                    arguments: [this.resourceUri]
+                };
+            }
+        } else if (itemType === 'daily-group') {
+            this.contextValue = 'calendarDailyGroup';
+            this.iconPath = new vscode.ThemeIcon('calendar');
         } else {
             this.contextValue = 'calendarCategory';
             this.iconPath = new vscode.ThemeIcon(itemType === 'daily' ? 'calendar' : 'notebook');
