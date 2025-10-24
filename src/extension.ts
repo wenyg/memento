@@ -14,9 +14,11 @@ import { registerCommands } from './commands';
 export function activate(context: vscode.ExtensionContext) {
     // 输出诊断信息
 	console.log('Memento extension is now active!');
+    console.log('[Memento Debug] 扩展开始激活');
 
     // 创建主树数据提供者
 	const mainProvider = new MainTreeProvider();
+    console.log('[Memento Debug] MainTreeProvider 已创建');
 
     // 注册主树视图
 	const treeView = vscode.window.createTreeView('mementoMainView', {

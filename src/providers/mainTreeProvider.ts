@@ -79,11 +79,14 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
     }
 
     getChildren(element?: MdFileItem | TagItem | CalendarItem): Thenable<(MdFileItem | TagItem | CalendarItem)[]> {
+        console.log(`[MainProvider Debug] getChildren 被调用, 当前模式: ${this.currentMode}, element:`, element ? element.label : 'root');
+        
         if (this.currentMode === ViewMode.FILES) {
             return this.fileProvider.getChildren(element as MdFileItem);
         } else if (this.currentMode === ViewMode.TAGS) {
             return this.tagProvider.getChildren(element as TagItem);
         } else if (this.currentMode === ViewMode.CALENDAR) {
+            console.log(`[MainProvider Debug] 委托给 CalendarProvider`);
             return this.calendarProvider.getChildren(element as CalendarItem);
         } else {
             // SETTINGS 模式

@@ -12,6 +12,10 @@ export class CalendarProvider implements vscode.TreeDataProvider<CalendarItem> {
     private _onDidChangeTreeData: vscode.EventEmitter<CalendarItem | undefined | null | void> = new vscode.EventEmitter<CalendarItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<CalendarItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
+    constructor() {
+        console.log('[Calendar Debug] CalendarProvider 构造函数被调用');
+    }
+
     refresh(): void {
         this._onDidChangeTreeData.fire();
     }
@@ -21,8 +25,11 @@ export class CalendarProvider implements vscode.TreeDataProvider<CalendarItem> {
     }
 
     async getChildren(element?: CalendarItem): Promise<CalendarItem[]> {
+        console.log(`[Calendar Debug] getChildren 被调用, element:`, element ? `${element.label} (${element.itemType})` : 'root');
+        
         if (!element) {
             // 根级别 - 显示最近的周报，每个周报可以展开显示对应的日报
+            console.log(`[Calendar Debug] 加载根级别项目`);
             const items: CalendarItem[] = [
                 new CalendarItem('📊 打开本周的周报', vscode.TreeItemCollapsibleState.None, 'action', () => {
                     vscode.commands.executeCommand('memento.openWeeklyNote');
@@ -33,20 +40,31 @@ export class CalendarProvider implements vscode.TreeDataProvider<CalendarItem> {
             ];
 
             // 加载最近的周报作为可展开项目
+            console.log(`[Calendar Debug] 开始加载周报文件`);
             const recentWeeklyFiles = await this.loadRecentPeriodicNotes('weekly', 8);
+            console.log(`[Calendar Debug] 找到 ${recentWeeklyFiles.length} 个周报文件`);
             const weeklyItems = [];
             
             for (const weekFile of recentWeeklyFiles) {
+                console.log(`[Calendar Debug] 处理周报文件: ${weekFile.label}, 路径: ${weekFile.filePath}`);
+                
+                // 添加周数信息用于匹配日报
+                const weekInfo = await this.extractWeekInfo(weekFile.label);
+                console.log(`[Calendar Debug] 提取周报信息: ${weekFile.label} -> `, weekInfo);
+                
+                // 临时：强制设置为可展开来测试
+                const collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+                
                 const weekItem = new CalendarItem(
                     `📊 ${weekFile.label}`,
-                    vscode.TreeItemCollapsibleState.Collapsed,
+                    collapsibleState,
                     'week-item',
                     undefined,
                     weekFile.filePath
                 );
-                // 添加周数信息用于匹配日报
-                const weekInfo = await this.extractWeekInfo(weekFile.label);
+                
                 (weekItem as any).weekInfo = weekInfo;
+                console.log(`[Calendar Debug] 创建周报项目: ${weekFile.label}, 强制可展开`);
                 weeklyItems.push(weekItem);
             }
 
@@ -55,9 +73,15 @@ export class CalendarProvider implements vscode.TreeDataProvider<CalendarItem> {
         } else if (element.itemType === 'week-item') {
             // 展开周报时显示对应周的日报
             const weekInfo = (element as any).weekInfo;
+            console.log(`[Calendar Debug] 展开周报: ${element.label}`);
+            console.log(`[Calendar Debug] weekInfo:`, weekInfo);
             if (weekInfo) {
+                console.log(`[Calendar Debug] 开始加载 ${weekInfo.year} 年第 ${weekInfo.week} 周的日报`);
                 const dailyItems = await this.loadDailyNotesForWeek(weekInfo.year, weekInfo.week);
+                console.log(`[Calendar Debug] 找到 ${dailyItems.length} 个日报文件`);
                 return dailyItems;
+            } else {
+                console.log(`[Calendar Debug] weekInfo 为空，无法加载日报`);
             }
         }
 
@@ -189,36 +213,45 @@ export class CalendarProvider implements vscode.TreeDataProvider<CalendarItem> {
             
             // 移除 .md 后缀（如果存在）
             const cleanFileName = fileName.replace(/\.md$/, '');
+            console.log(`[Calendar Debug] 清理后的文件名: ${cleanFileName}, 模板: ${template}`);
             
-            // 将模板转换为正则表达式
-            const regexPattern = template
-                .replace(/\./g, '\\.')  // 转义点号
-                .replace(/\{\{year\}\}/g, '(\\d{4})')  // 年份：4位数字
-                .replace(/\{\{week\}\}/g, '(\\d{1,2})')  // 周数：1-2位数字
-                .replace(/\.md$/, '');  // 移除模板中的 .md 后缀
+            // 将模板转换为正则表达式，并记录变量的位置
+            let regexPattern = template.replace(/\.md$/, '');  // 移除模板中的 .md 后缀
             
+            // 找到年份和周数在模板中的位置
+            const yearIndex = regexPattern.indexOf('{{year}}');
+            const weekIndex = regexPattern.indexOf('{{week}}');
+            
+            // 确定捕获组的顺序
+            let yearGroup = 1;
+            let weekGroup = 2;
+            if (weekIndex < yearIndex) {
+                yearGroup = 2;
+                weekGroup = 1;
+            }
+            
+            // 转义特殊字符并替换变量为捕获组
+            regexPattern = regexPattern
+                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')  // 转义所有正则特殊字符
+                .replace(/\\\{\\\{year\\\}\\\}/g, '(\\d{4})')  // 年份：4位数字
+                .replace(/\\\{\\\{week\\\}\\\}/g, '(\\d{1,2})');  // 周数：1-2位数字
+            
+            console.log(`[Calendar Debug] 模板: ${template}`);
+            console.log(`[Calendar Debug] 生成的正则表达式: ^${regexPattern}$`);
+            console.log(`[Calendar Debug] 年份组: ${yearGroup}, 周数组: ${weekGroup}`);
+            
+            // 使用模板匹配
             const regex = new RegExp(`^${regexPattern}$`);
             const match = cleanFileName.match(regex);
             
             if (match) {
-                // 找到年份和周数在模板中的位置
-                const yearIndex = template.indexOf('{{year}}');
-                const weekIndex = template.indexOf('{{week}}');
-                
-                let yearGroup = 1;
-                let weekGroup = 2;
-                
-                // 如果周数在年份之前，调整分组索引
-                if (weekIndex < yearIndex) {
-                    yearGroup = 2;
-                    weekGroup = 1;
-                }
-                
                 const year = parseInt(match[yearGroup]);
                 const week = parseInt(match[weekGroup]);
                 
+                console.log(`[Calendar Debug] 模板匹配成功: 年份=${year}, 周数=${week}`);
                 return { year, week };
             } else {
+                console.log(`[Calendar Debug] 模板匹配失败: ${cleanFileName} 不匹配 ^${regexPattern}$`);
                 return null;
             }
         } catch (error) {
@@ -249,20 +282,26 @@ export class CalendarProvider implements vscode.TreeDataProvider<CalendarItem> {
 
         // 计算该周的日期范围
         const weekDates = this.getWeekDates(year, week);
+        console.log(`[Calendar Debug] 该周日期范围:`, weekDates.map(d => d.toDateString()));
         
         try {
             const files = await fs.promises.readdir(noteDir);
             const mdFiles = files.filter(f => f.endsWith('.md'));
+            console.log(`[Calendar Debug] 日报目录中的 .md 文件:`, mdFiles);
 
             // 根据命名模式过滤该周的日报文件
             const fileNamePattern = config.dailyNoteFileNameFormat;
+            console.log(`[Calendar Debug] 日报文件名模板: ${fileNamePattern}`);
             const dailyFiles: CalendarItem[] = [];
 
             for (const date of weekDates) {
                 const expectedFileName = fileNamePattern
                     .replace(/\{\{year\}\}/g, date.getFullYear().toString())
                     .replace(/\{\{month\}\}/g, String(date.getMonth() + 1).padStart(2, '0'))
-                    .replace(/\{\{day\}\}/g, String(date.getDate()).padStart(2, '0'));
+                    .replace(/\{\{day\}\}/g, String(date.getDate()).padStart(2, '0'))
+                    .replace(/\{\{week\}\}/g, String(week).padStart(2, '0'));  // 替换周数
+
+                console.log(`[Calendar Debug] 查找日报文件: ${expectedFileName}`);
 
                 if (mdFiles.includes(expectedFileName)) {
                     const filePath = path.join(noteDir, expectedFileName);
