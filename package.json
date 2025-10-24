@@ -1,8 +1,8 @@
 {
   "name": "memento",
   "displayName": "Memento",
-  "description": "轻量级 Markdown 笔记管理插件，支持多视图、标签分类、工作周报",
-  "version": "0.1.0",
+  "description": "轻量级 Markdown 笔记管理插件，支持最近文章、标签分类、工作周报",
+  "version": "0.1.1",
   "publisher": "wenyg",
   "repository": {
     "type": "git",
@@ -104,7 +104,7 @@
       "activitybar": [
         {
           "id": "memento-explorer",
-          "title": "Memento",
+          "title": "MEMENTO",
           "icon": "$(notebook)"
         }
       ]
@@ -113,7 +113,7 @@
       "memento-explorer": [
         {
           "id": "mementoMainView",
-          "name": "Markdown Files",
+          "name": "",
           "when": "workspaceFolderCount > 0"
         }
       ]
