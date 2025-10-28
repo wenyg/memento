@@ -103,6 +103,7 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
         if (!element) {
             return [
                 new CalendarItem('📂 笔记根目录', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
+                new CalendarItem('📄 笔记管理', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
                 new CalendarItem('📁 文件过滤', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
                 new CalendarItem('📝 日记设置', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
                 new CalendarItem('📊 周报设置', vscode.TreeItemCollapsibleState.Collapsed, 'category'),
@@ -135,6 +136,30 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
                             await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
                         } else {
                             vscode.window.showErrorMessage('未找到笔记目录');
+                        }
+                    }
+                )
+            ];
+        }
+
+        if (element.label === '📄 笔记管理') {
+            return [
+                new CalendarItem(
+                    `新笔记默认路径: ${config.defaultNotePath}`,
+                    vscode.TreeItemCollapsibleState.None,
+                    'action',
+                    async () => {
+                        const input = await vscode.window.showInputBox({
+                            prompt: '设置新笔记的默认存放路径',
+                            value: config.defaultNotePath,
+                            placeHolder: '例如: 未分类, 工作笔记, 学习笔记'
+                        });
+                        if (input !== undefined) {
+                            const { saveMementoConfig } = await import('../config.js');
+                            const newConfig = { ...config, defaultNotePath: input };
+                            await saveMementoConfig(notesPath, newConfig);
+                            vscode.window.showInformationMessage('✓ 默认笔记路径已更新');
+                            this.refresh();
                         }
                     }
                 )

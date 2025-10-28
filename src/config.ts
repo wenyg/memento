@@ -7,15 +7,18 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { MementoConfig } from './types';
 
-export const DEFAULT_CONFIG: MementoConfig = {
+const defaultConfig = {
     excludeFolders: ['node_modules', '.git'],
     dailyNotesPath: 'daily',
     dailyNoteFileNameFormat: '{{year}}-{{month}}-{{day}}.md',
     dailyNoteTemplatePath: '',
     weeklyNotesPath: 'weekly',
     weeklyNoteFileNameFormat: '{{year}}-W{{week}}.md',
-    weeklyNoteTemplatePath: ''
+    weeklyNoteTemplatePath: '',
+    defaultNotePath: '未分类'
 };
+
+export const DEFAULT_CONFIG: MementoConfig = defaultConfig;
 
 /**
  * 获取笔记根目录路径

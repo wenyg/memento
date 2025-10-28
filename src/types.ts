@@ -25,6 +25,7 @@ export interface MementoConfig {
     weeklyNotesPath: string;
     weeklyNoteFileNameFormat: string;
     weeklyNoteTemplatePath: string;
+    defaultNotePath: string;
 }
 
 export interface TagInfo {

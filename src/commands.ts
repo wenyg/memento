@@ -161,14 +161,18 @@ export async function createNote(): Promise<void> {
         return;
     }
 
+    // 获取配置以确定默认路径
+    const config = await loadMementoConfig(notesPath);
+    
     // 步骤 1: 让用户选择或创建文件夹
     const folders = await getAllFolders(notesPath);
 
-    // 添加特殊选项
+    // 添加特殊选项，将默认路径放在最前面
     const folderOptions = [
+        { label: `$(star) ${config.defaultNotePath} (默认)`, value: config.defaultNotePath },
         { label: '$(root-folder) 根目录', value: '' },
         { label: '$(new-folder) 新建文件夹...', value: '__new__' },
-        ...folders.map(f => ({ label: `$(folder) ${f}`, value: f }))
+        ...folders.filter(f => f !== config.defaultNotePath).map(f => ({ label: `$(folder) ${f}`, value: f }))
     ];
 
     const selectedFolder = await vscode.window.showQuickPick(
@@ -207,6 +211,8 @@ export async function createNote(): Promise<void> {
         targetFolder = newFolderName;
     } else if (selectedFolder.includes('根目录')) {
         targetFolder = '';
+    } else if (selectedFolder.includes('(默认)')) {
+        targetFolder = config.defaultNotePath;
     } else {
         // 从标签中提取文件夹名称
         const selectedOption = folderOptions.find(f => f.label === selectedFolder);
