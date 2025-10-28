@@ -382,11 +382,13 @@ export function registerCommands(context: vscode.ExtensionContext, mainProvider:
     const openDailyNoteDisposable = vscode.commands.registerCommand('memento.openDailyNote', async () => {
         console.log('Open daily note command triggered');
         await openPeriodicNote('daily');
+        mainProvider.refresh();
     });
 
     const openWeeklyNoteDisposable = vscode.commands.registerCommand('memento.openWeeklyNote', async () => {
         console.log('Open weekly note command triggered');
         await openPeriodicNote('weekly');
+        mainProvider.refresh();
     });
 
     const createNoteDisposable = vscode.commands.registerCommand('memento.createNote', async () => {
