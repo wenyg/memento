@@ -1,9 +1,18 @@
-# Change Log
+# 版本历史
 
-All notable changes to the "memento" extension will be documented in this file.
+## 0.1.2
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+- ✅ 优化周报不存在时无法显示日报的 bug
+- ✅ 新建文件时变更时自动刷新视图
 
-## [Unreleased]
+## 0.1.1
 
-- Initial release
+- ✅ 优化日报视图
+
+## 0.1.0
+
+- ✅ 时间视图、标签视图、日历视图
+- ✅ Front Matter 支持
+- ✅ 新建笔记功能
+- ✅ 日记周报系统
+- ✅ 可视化设置界面

@@ -1,11 +1,40 @@
+# VS Code 扩展打包时忽略的文件
+
+# 源代码
 .vscode/**
 .vscode-test/**
 src/**
 .gitignore
 .yarnrc
 vsc-extension-quickstart.md
-**/tsconfig.json
-**/eslint.config.mjs
-**/*.map
-**/*.ts
-**/.vscode-test.*
+
+# 测试
+**/test/**
+**/tests/**
+**/.eslintrc.json
+
+# 配置文件
+tsconfig.json
+eslint.config.mjs
+
+# 文档
+**/*.md
+!README.md
+!CHANGELOG.md
+
+# 开发相关
+.vscodeignore
+**/.DS_Store
+node_modules/**
+.git/**
+.github/**
+
+# 打包文件
+*.vsix
+
+# 脚本
+scripts/**
+
+# 其他
+*.map
+screenshots/**

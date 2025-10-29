@@ -170,7 +170,12 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "package": "vsce package",
+    "publish": "vsce publish",
+    "publish:patch": "vsce publish patch",
+    "publish:minor": "vsce publish minor",
+    "publish:major": "vsce publish major"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",
@@ -178,6 +183,7 @@
     "@types/node": "22.x",
     "@typescript-eslint/eslint-plugin": "^8.42.0",
     "@typescript-eslint/parser": "^8.42.0",
+    "@vscode/vsce": "^3.2.1",
     "eslint": "^9.34.0",
     "typescript": "^5.9.2",
     "@vscode/test-cli": "^0.0.11",
