@@ -429,6 +429,42 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             });
         });
 
+        // 使用事件委托处理表格点击事件
+        document.getElementById('todoBody').addEventListener('click', (e) => {
+            const target = e.target;
+            
+            // 处理内容单元格点击
+            if (target.classList.contains('content-cell')) {
+                const index = parseInt(target.getAttribute('data-todo-index') || '0');
+                if (filteredTodos[index]) {
+                    openTodo(filteredTodos[index]);
+                }
+                return;
+            }
+            
+            // 处理文件链接点击
+            if (target.classList.contains('file-link')) {
+                const index = parseInt(target.getAttribute('data-todo-index') || '0');
+                if (filteredTodos[index]) {
+                    openTodo(filteredTodos[index]);
+                }
+                return;
+            }
+        });
+
+        // 使用事件委托处理复选框变化
+        document.getElementById('todoBody').addEventListener('change', (e) => {
+            const target = e.target;
+            
+            // 处理复选框变化
+            if (target.classList.contains('status-checkbox')) {
+                const index = parseInt(target.getAttribute('data-todo-index') || '0');
+                if (filteredTodos[index]) {
+                    toggleTodo(filteredTodos[index]);
+                }
+            }
+        });
+
         function updateProjectFilter() {
             const projects = new Set();
             allTodos.forEach(todo => {
@@ -553,22 +589,22 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                 return;
             }
 
-            tbody.innerHTML = filteredTodos.map(todo => {
+            tbody.innerHTML = filteredTodos.map((todo, index) => {
                 const priorityClass = \`priority-\${todo.priority ? todo.priority.toLowerCase() : 'none'}\`;
                 const priorityText = todo.priority ? \`[\${todo.priority}]\` : '-';
                 const dueDateClass = getDueDateClass(todo.due);
                 const indentClass = \`indent-level-\${Math.min(todo.level, 4)}\`;
 
                 return \`
-                    <tr class="\${todo.completed ? 'completed' : ''}">
+                    <tr class="\${todo.completed ? 'completed' : ''}" data-todo-index="\${index}">
                         <td style="text-align: center;">
                             <input type="checkbox" 
                                    class="status-checkbox" 
                                    \${todo.completed ? 'checked' : ''}
-                                   onchange='toggleTodo(\${JSON.stringify(todo)})'>
+                                   data-todo-index="\${index}">
                         </td>
                         <td class="\${priorityClass}">\${priorityText}</td>
-                        <td class="content-cell \${indentClass}" onclick='openTodo(\${JSON.stringify(todo)})'
+                        <td class="content-cell \${indentClass}" data-todo-index="\${index}"
                             title="\${todo.content}">
                             \${todo.content}
                         </td>
@@ -580,7 +616,7 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                         </td>
                         <td class="due-date \${dueDateClass}">\${todo.due || '-'}</td>
                         <td>
-                            <span class="file-link" onclick='openTodo(\${JSON.stringify(todo)})'
+                            <span class="file-link" data-todo-index="\${index}"
                                   title="\${todo.fileName} (行 \${todo.lineNumber})">
                                 \${todo.fileName}
                             </span>
