@@ -4,7 +4,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { MdFileInfo, FrontMatter } from './types';
+import { MdFileInfo, FrontMatter, TodoItem, TodoPriority } from './types';
 import { loadMementoConfig } from './config';
 
 /**
@@ -428,4 +428,159 @@ export async function fillFrontMatterDateForAllFiles(dir: string): Promise<void>
     }
 
     console.log(`Processed ${processedCount} files`);
+}
+
+/**
+ * 解析 TODO 行的属性
+ * 支持格式: - [ ] todo content #tag1 #tag2 project:my_project due:2023-01-01 priority:H
+ */
+export function parseTodoAttributes(line: string): {
+    content: string;
+    tags: string[];
+    project?: string;
+    due?: string;
+    priority: TodoPriority;
+} {
+    let content = line;
+    const tags: string[] = [];
+    let project: string | undefined;
+    let due: string | undefined;
+    let priority: TodoPriority = TodoPriority.NONE;
+
+    // 提取标签 #tag
+    const tagMatches = content.matchAll(/#([\p{L}\p{N}_\-\/]+)/gu);
+    for (const match of tagMatches) {
+        tags.push(match[1]);
+    }
+
+    // 提取项目 project:name
+    const projectMatch = content.match(/project:([\p{L}\p{N}_\-\/]+)/u);
+    if (projectMatch) {
+        project = projectMatch[1];
+    }
+
+    // 提取截止日期 due:YYYY-MM-DD
+    const dueMatch = content.match(/due:(\d{4}-\d{2}-\d{2})/);
+    if (dueMatch) {
+        due = dueMatch[1];
+    }
+
+    // 提取优先级 priority:H/M/L
+    const priorityMatch = content.match(/priority:([HML])/);
+    if (priorityMatch) {
+        priority = priorityMatch[1] as TodoPriority;
+    }
+
+    // 移除所有属性标记，只保留内容
+    content = content
+        .replace(/#[\p{L}\p{N}_\-\/]+/gu, '')
+        .replace(/project:[\p{L}\p{N}_\-\/]+/gu, '')
+        .replace(/due:\d{4}-\d{2}-\d{2}/g, '')
+        .replace(/priority:[HML]/g, '')
+        .trim();
+
+    return { content, tags, project, due, priority };
+}
+
+/**
+ * 从文件中提取所有 TODO 项
+ */
+export async function extractTodosFromFile(filePath: string): Promise<TodoItem[]> {
+    try {
+        const content = await fs.promises.readFile(filePath, 'utf-8');
+        const lines = content.split(/\r?\n/);
+        const todos: TodoItem[] = [];
+        const fileName = path.basename(filePath);
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            
+            // 匹配 TODO 行: - [ ] 或 - [x]
+            const todoMatch = line.match(/^(\s*)- \[([ xX])\]\s+(.+)$/);
+            if (todoMatch) {
+                const indent = todoMatch[1];
+                const checked = todoMatch[2].toLowerCase() === 'x';
+                const todoContent = todoMatch[3];
+
+                // 计算缩进级别
+                const level = Math.floor(indent.length / 4);
+
+                // 解析属性
+                const attributes = parseTodoAttributes(todoContent);
+
+                todos.push({
+                    filePath,
+                    fileName,
+                    lineNumber: i + 1,
+                    content: attributes.content,
+                    completed: checked,
+                    level,
+                    tags: attributes.tags,
+                    project: attributes.project,
+                    due: attributes.due,
+                    priority: attributes.priority
+                });
+            }
+        }
+
+        return todos;
+    } catch (error) {
+        console.error(`Error reading file ${filePath}:`, error);
+        return [];
+    }
+}
+
+/**
+ * 从目录中提取所有 TODO 项
+ */
+export async function extractTodosFromDirectory(dir: string): Promise<TodoItem[]> {
+    const allTodos: TodoItem[] = [];
+    const config = await loadMementoConfig(dir);
+
+    async function scanDirectory(currentDir: string) {
+        const items = await fs.promises.readdir(currentDir);
+
+        for (const item of items) {
+            const itemPath = path.join(currentDir, item);
+            const stats = await fs.promises.stat(itemPath);
+
+            if (stats.isDirectory()) {
+                if (!shouldExcludeFolder(item, config.excludeFolders)) {
+                    await scanDirectory(itemPath);
+                }
+            } else if (stats.isFile() && path.extname(item).toLowerCase() === '.md') {
+                const todos = await extractTodosFromFile(itemPath);
+                allTodos.push(...todos);
+            }
+        }
+    }
+
+    await scanDirectory(dir);
+    return allTodos;
+}
+
+/**
+ * 切换 TODO 项的完成状态
+ */
+export async function toggleTodoStatus(todo: TodoItem): Promise<boolean> {
+    try {
+        const content = await fs.promises.readFile(todo.filePath, 'utf-8');
+        const lines = content.split(/\r?\n/);
+
+        if (todo.lineNumber > 0 && todo.lineNumber <= lines.length) {
+            const line = lines[todo.lineNumber - 1];
+            const newLine = todo.completed
+                ? line.replace(/- \[x\]/i, '- [ ]')
+                : line.replace(/- \[ \]/, '- [x]');
+
+            lines[todo.lineNumber - 1] = newLine;
+            await fs.promises.writeFile(todo.filePath, lines.join('\n'), 'utf-8');
+            return true;
+        }
+
+        return false;
+    } catch (error) {
+        console.error(`Error toggling todo status:`, error);
+        return false;
+    }
 }

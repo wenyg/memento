@@ -98,6 +98,25 @@
         "command": "memento.createNote",
         "title": "Memento: 新建笔记",
         "icon": "$(new-file)"
+      },
+      {
+        "command": "memento.switchToTodoView",
+        "title": "TODO List",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "memento.changeTodoGrouping",
+        "title": "Change TODO Grouping",
+        "icon": "$(group-by-ref-type)"
+      },
+      {
+        "command": "memento.toggleTodo",
+        "title": "Toggle TODO Status",
+        "icon": "$(check)"
+      },
+      {
+        "command": "memento.openTodoInFile",
+        "title": "Open in File"
       }
     ],
     "viewsContainers": {
@@ -136,22 +155,42 @@
           "group": "navigation@3"
         },
         {
-          "command": "memento.createNote",
+          "command": "memento.switchToTodoView",
           "when": "view == mementoMainView",
           "group": "navigation@4"
         },
         {
-          "command": "memento.switchToSettingsView",
+          "command": "memento.createNote",
           "when": "view == mementoMainView",
           "group": "navigation@5"
         },
         {
-          "command": "memento.refreshMdFiles",
+          "command": "memento.switchToSettingsView",
           "when": "view == mementoMainView",
           "group": "navigation@6"
+        },
+        {
+          "command": "memento.refreshMdFiles",
+          "when": "view == mementoMainView",
+          "group": "navigation@7"
+        },
+        {
+          "command": "memento.changeTodoGrouping",
+          "when": "view == mementoMainView",
+          "group": "navigation@8"
         }
       ],
-      "view/item/context": []
+      "view/item/context": [
+        {
+          "command": "memento.toggleTodo",
+          "when": "viewItem == todoItemPending || viewItem == todoItemCompleted",
+          "group": "inline"
+        },
+        {
+          "command": "memento.openTodoInFile",
+          "when": "viewItem == todoItemPending || viewItem == todoItemCompleted"
+        }
+      ]
     },
     "configuration": {
       "title": "Memento",

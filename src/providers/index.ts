@@ -7,3 +7,4 @@ export { MdFilesProvider } from './mdFilesProvider';
 export { TagTreeProvider } from './tagTreeProvider';
 export { CalendarProvider } from './calendarProvider';
 export { MainTreeProvider } from './mainTreeProvider';
+export { TodoTreeProvider, TodoTreeItem } from './todoTreeProvider';

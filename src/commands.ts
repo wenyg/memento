@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { PeriodicNoteType } from './types';
+import { PeriodicNoteType, TodoItem } from './types';
 import { 
     getNotesRootPath, 
     loadMementoConfig, 
@@ -16,7 +16,8 @@ import {
 import { 
     getAllFolders, 
     getWeekNumber, 
-    fillFrontMatterDateForAllFiles 
+    fillFrontMatterDateForAllFiles,
+    toggleTodoStatus 
 } from './utils';
 import { CalendarItem, MainTreeProvider } from './providers';
 
@@ -333,6 +334,61 @@ export function executeSettingCommand(item: CalendarItem): void {
 }
 
 /**
+ * 在文件中打开 TODO 项
+ */
+export async function openTodoInFile(todo: TodoItem): Promise<void> {
+    try {
+        const document = await vscode.workspace.openTextDocument(todo.filePath);
+        const editor = await vscode.window.showTextDocument(document);
+        
+        // 跳转到指定行
+        const line = todo.lineNumber - 1; // VSCode 行号从 0 开始
+        const position = new vscode.Position(line, 0);
+        editor.selection = new vscode.Selection(position, position);
+        editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+    } catch (error) {
+        vscode.window.showErrorMessage(`无法打开文件: ${error}`);
+    }
+}
+
+/**
+ * 切换 TODO 完成状态
+ */
+export async function toggleTodoItem(todo: TodoItem, mainProvider: MainTreeProvider): Promise<void> {
+    const success = await toggleTodoStatus(todo);
+    if (success) {
+        mainProvider.refresh();
+        vscode.window.showInformationMessage(`TODO 已${todo.completed ? '标记为未完成' : '标记为完成'}`);
+    } else {
+        vscode.window.showErrorMessage('切换 TODO 状态失败');
+    }
+}
+
+/**
+ * 改变 TODO 分组方式
+ */
+export async function changeTodoGrouping(mainProvider: MainTreeProvider): Promise<void> {
+    const options = [
+        { label: '📁 按文件分组', value: 'file' as const },
+        { label: '📊 按项目分组', value: 'project' as const },
+        { label: '🎯 按优先级分组', value: 'priority' as const },
+        { label: '✅按状态分组', value: 'status' as const }
+    ];
+
+    const selected = await vscode.window.showQuickPick(
+        options.map(o => o.label),
+        { placeHolder: '选择 TODO 分组方式' }
+    );
+
+    if (selected) {
+        const option = options.find(o => o.label === selected);
+        if (option) {
+            mainProvider.getTodoProvider().setGroupBy(option.value);
+        }
+    }
+}
+
+/**
  * 注册所有命令
  */
 export function registerCommands(context: vscode.ExtensionContext, mainProvider: MainTreeProvider): void {
@@ -402,6 +458,24 @@ export function registerCommands(context: vscode.ExtensionContext, mainProvider:
         mainProvider.refresh();
     });
 
+    // TODO 相关命令
+    const switchToTodoViewDisposable = vscode.commands.registerCommand('memento.switchToTodoView', () => {
+        console.log('Switch to todo view command triggered');
+        mainProvider.switchToTodoView();
+    });
+
+    const openTodoInFileDisposable = vscode.commands.registerCommand('memento.openTodoInFile', async (todo: TodoItem) => {
+        await openTodoInFile(todo);
+    });
+
+    const toggleTodoDisposable = vscode.commands.registerCommand('memento.toggleTodo', async (todo: TodoItem) => {
+        await toggleTodoItem(todo, mainProvider);
+    });
+
+    const changeTodoGroupingDisposable = vscode.commands.registerCommand('memento.changeTodoGrouping', async () => {
+        await changeTodoGrouping(mainProvider);
+    });
+
     // 将所有命令添加到订阅中
     context.subscriptions.push(
         helloWorldDisposable,
@@ -417,6 +491,10 @@ export function registerCommands(context: vscode.ExtensionContext, mainProvider:
         fillFrontMatterDateDisposable,
         openDailyNoteDisposable,
         openWeeklyNoteDisposable,
-        createNoteDisposable
+        createNoteDisposable,
+        switchToTodoViewDisposable,
+        openTodoInFileDisposable,
+        toggleTodoDisposable,
+        changeTodoGroupingDisposable
     );
 }

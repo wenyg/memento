@@ -38,8 +38,44 @@ export enum ViewMode {
     FILES = 'files',
     TAGS = 'tags',
     CALENDAR = 'calendar',
-    SETTINGS = 'settings'
+    SETTINGS = 'settings',
+    TODO = 'todo'
 }
 
 export type CalendarItemType = 'daily' | 'weekly' | 'action' | 'command' | 'file' | 'category' | 'week-item' | 'daily-group';
 export type PeriodicNoteType = 'daily' | 'weekly';
+
+/**
+ * TODO 项优先级
+ */
+export enum TodoPriority {
+    HIGH = 'H',
+    MEDIUM = 'M',
+    LOW = 'L',
+    NONE = ''
+}
+
+/**
+ * TODO 项信息
+ */
+export interface TodoItem {
+    filePath: string;
+    fileName: string;
+    lineNumber: number;
+    content: string;
+    completed: boolean;
+    level: number;
+    tags: string[];
+    project?: string;
+    due?: string;
+    priority: TodoPriority;
+}
+
+/**
+ * TODO 组信息（按文件、项目、标签等分组）
+ */
+export interface TodoGroup {
+    label: string;
+    todos: TodoItem[];
+    children?: TodoGroup[];
+}
