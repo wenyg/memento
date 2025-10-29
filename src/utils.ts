@@ -584,3 +584,84 @@ export async function toggleTodoStatus(todo: TodoItem): Promise<boolean> {
         return false;
     }
 }
+
+/**
+ * 更新 TODO 项的属性
+ */
+export async function updateTodoAttributes(
+    todo: TodoItem,
+    updates: {
+        tags?: string[];
+        project?: string;
+        due?: string;
+        priority?: TodoPriority;
+    }
+): Promise<boolean> {
+    try {
+        const content = await fs.promises.readFile(todo.filePath, 'utf-8');
+        const lines = content.split(/\r?\n/);
+
+        if (todo.lineNumber <= 0 || todo.lineNumber > lines.length) {
+            return false;
+        }
+
+        const line = lines[todo.lineNumber - 1];
+        
+        // 匹配 TODO 行格式: - [ ] 或 - [x]
+        const todoMatch = line.match(/^(\s*)- \[([ xX])\]\s+(.+)$/);
+        if (!todoMatch) {
+            return false;
+        }
+
+        const indent = todoMatch[1];
+        const checked = todoMatch[2];
+        let todoContent = todoMatch[3];
+
+        // 移除现有的所有属性
+        todoContent = todoContent
+            .replace(/#[\p{L}\p{N}_\-\/]+/gu, '')
+            .replace(/project:[\p{L}\p{N}_\-\/]+/gu, '')
+            .replace(/due:\d{4}-\d{2}-\d{2}/g, '')
+            .replace(/priority:[HML]/g, '')
+            .trim();
+
+        // 构建新的属性字符串，保留未更新的原有属性
+        const attributes: string[] = [];
+
+        // 添加标签 - 如果更新中包含 tags，使用新值；否则保留原值
+        const finalTags = updates.tags !== undefined ? updates.tags : todo.tags;
+        if (finalTags && finalTags.length > 0) {
+            finalTags.forEach(tag => {
+                attributes.push(`#${tag}`);
+            });
+        }
+
+        // 添加项目 - 如果更新中包含 project，使用新值；否则保留原值
+        const finalProject = updates.project !== undefined ? updates.project : todo.project;
+        if (finalProject) {
+            attributes.push(`project:${finalProject}`);
+        }
+
+        // 添加截止日期 - 如果更新中包含 due，使用新值；否则保留原值
+        const finalDue = updates.due !== undefined ? updates.due : todo.due;
+        if (finalDue) {
+            attributes.push(`due:${finalDue}`);
+        }
+
+        // 添加优先级 - 如果更新中包含 priority，使用新值；否则保留原值
+        const finalPriority = updates.priority !== undefined ? updates.priority : todo.priority;
+        if (finalPriority && finalPriority !== TodoPriority.NONE) {
+            attributes.push(`priority:${finalPriority}`);
+        }
+
+        // 重建 TODO 行
+        const newLine = `${indent}- [${checked}] ${todoContent}${attributes.length > 0 ? ' ' + attributes.join(' ') : ''}`;
+        lines[todo.lineNumber - 1] = newLine;
+
+        await fs.promises.writeFile(todo.filePath, lines.join('\n'), 'utf-8');
+        return true;
+    } catch (error) {
+        console.error(`Error updating todo attributes:`, error);
+        return false;
+    }
+}

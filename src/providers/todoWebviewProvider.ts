@@ -4,7 +4,7 @@
 
 import * as vscode from 'vscode';
 import { TodoItem, TodoPriority } from '../types';
-import { extractTodosFromDirectory, toggleTodoStatus } from '../utils';
+import { extractTodosFromDirectory, toggleTodoStatus, updateTodoAttributes } from '../utils';
 import { getNotesRootPath } from '../config';
 
 export class TodoWebviewProvider implements vscode.WebviewViewProvider {
@@ -42,6 +42,9 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                     break;
                 case 'openTodo':
                     await this.handleOpenTodo(data.todo);
+                    break;
+                case 'editTodo':
+                    await this.handleEditTodo(data.todo, data.updates);
                     break;
                 case 'filterChanged':
                     this.handleFilterChanged(data.filter);
@@ -90,6 +93,104 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
         } catch (error) {
             vscode.window.showErrorMessage(`无法打开文件: ${error}`);
+        }
+    }
+
+    private async handleEditTodo(todo: TodoItem, updates?: any) {
+        // 如果提供了 updates，直接更新（来自内联编辑）
+        if (updates) {
+            const success = await updateTodoAttributes(todo, updates);
+            if (success) {
+                await this.refresh();
+            } else {
+                vscode.window.showErrorMessage('更新 TODO 失败');
+            }
+            return;
+        }
+
+        // 否则显示快速选择菜单（保留旧的对话框方式）
+        const action = await vscode.window.showQuickPick([
+            { label: '$(tag) 编辑标签', value: 'tags' },
+            { label: '$(project) 编辑项目', value: 'project' },
+            { label: '$(calendar) 设置截止日期', value: 'due' },
+            { label: '$(star) 设置优先级', value: 'priority' }
+        ], {
+            placeHolder: `编辑: ${todo.content}`
+        });
+
+        if (!action) {
+            return;
+        }
+
+        let dialogUpdates: any = {};
+
+        switch (action.value) {
+            case 'tags':
+                const tagsInput = await vscode.window.showInputBox({
+                    prompt: '输入标签（用空格分隔，无需 # 前缀）',
+                    value: todo.tags.join(' '),
+                    placeHolder: '例如: 工作 紧急'
+                });
+                if (tagsInput !== undefined) {
+                    dialogUpdates.tags = tagsInput.trim() ? tagsInput.trim().split(/\s+/) : [];
+                }
+                break;
+
+            case 'project':
+                const projectInput = await vscode.window.showInputBox({
+                    prompt: '输入项目名称',
+                    value: todo.project || '',
+                    placeHolder: '例如: Q4Report'
+                });
+                if (projectInput !== undefined) {
+                    dialogUpdates.project = projectInput.trim();
+                }
+                break;
+
+            case 'due':
+                const dueInput = await vscode.window.showInputBox({
+                    prompt: '输入截止日期（YYYY-MM-DD）',
+                    value: todo.due || '',
+                    placeHolder: '例如: 2025-12-31',
+                    validateInput: (value) => {
+                        if (!value) {
+                            return null;
+                        }
+                        if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                            return '日期格式必须为 YYYY-MM-DD';
+                        }
+                        return null;
+                    }
+                });
+                if (dueInput !== undefined) {
+                    dialogUpdates.due = dueInput.trim();
+                }
+                break;
+
+            case 'priority':
+                const priorityOptions = [
+                    { label: '$(alert) 高优先级 (H)', value: TodoPriority.HIGH },
+                    { label: '$(dash) 中优先级 (M)', value: TodoPriority.MEDIUM },
+                    { label: '$(chevron-down) 低优先级 (L)', value: TodoPriority.LOW },
+                    { label: '$(circle-slash) 无优先级', value: TodoPriority.NONE }
+                ];
+                const priorityChoice = await vscode.window.showQuickPick(priorityOptions, {
+                    placeHolder: '选择优先级'
+                });
+                if (priorityChoice) {
+                    dialogUpdates.priority = priorityChoice.value;
+                }
+                break;
+        }
+
+        if (Object.keys(dialogUpdates).length > 0) {
+            const success = await updateTodoAttributes(todo, dialogUpdates);
+            if (success) {
+                await this.refresh();
+                vscode.window.showInformationMessage('TODO 已更新');
+            } else {
+                vscode.window.showErrorMessage('更新 TODO 失败');
+            }
         }
     }
 
@@ -300,6 +401,45 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             text-decoration: underline;
         }
 
+        .editable-cell {
+            position: relative;
+            cursor: text;
+        }
+
+        .editable-cell:hover {
+            background: var(--vscode-input-background);
+            outline: 1px solid var(--vscode-focusBorder);
+        }
+
+        .editable-cell.editing {
+            background: var(--vscode-input-background);
+            outline: 2px solid var(--vscode-focusBorder);
+        }
+
+        .editable-cell input,
+        .editable-cell select {
+            width: 100%;
+            background: transparent;
+            color: var(--vscode-input-foreground);
+            border: none;
+            padding: 0;
+            font-family: inherit;
+            font-size: inherit;
+            outline: none;
+        }
+
+        .tags-edit-input {
+            min-width: 100px;
+        }
+
+        .priority-cell {
+            cursor: pointer;
+        }
+
+        .priority-cell:hover {
+            background: var(--vscode-list-hoverBackground);
+        }
+
         .due-date {
             white-space: nowrap;
         }
@@ -362,11 +502,11 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             <thead>
                 <tr>
                     <th style="width: 40px;">状态</th>
-                    <th class="sortable" data-sort="priority" style="width: 80px;">优先级</th>
+                    <th class="sortable" data-sort="priority" style="width: 80px;" title="点击切换优先级">优先级</th>
                     <th class="sortable" data-sort="content">内容</th>
-                    <th class="sortable" data-sort="project" style="width: 120px;">项目</th>
-                    <th class="sortable" data-sort="tags" style="width: 150px;">标签</th>
-                    <th class="sortable" data-sort="due" style="width: 100px;">截止日期</th>
+                    <th class="sortable" data-sort="project" style="width: 120px;" title="双击编辑项目">项目</th>
+                    <th class="sortable" data-sort="tags" style="width: 150px;" title="双击编辑标签">标签</th>
+                    <th class="sortable" data-sort="due" style="width: 110px;" title="双击编辑截止日期">截止日期</th>
                     <th class="sortable" data-sort="file" style="width: 150px;">文件</th>
                 </tr>
             </thead>
@@ -429,9 +569,28 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             });
         });
 
+        // 当前正在编辑的单元格
+        let editingCell = null;
+        let isSaving = false;
+
         // 使用事件委托处理表格点击事件
         document.getElementById('todoBody').addEventListener('click', (e) => {
             const target = e.target;
+            
+            // 如果正在编辑，点击其他地方保存
+            if (editingCell && !target.closest('.editing')) {
+                saveEdit();
+            }
+            
+            // 处理优先级单元格点击 - 切换优先级
+            if (target.classList.contains('priority-cell')) {
+                const index = parseInt(target.getAttribute('data-todo-index') || '0');
+                const todo = filteredTodos[index];
+                if (todo) {
+                    cyclePriority(todo);
+                }
+                return;
+            }
             
             // 处理内容单元格点击
             if (target.classList.contains('content-cell')) {
@@ -450,6 +609,19 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                 }
                 return;
             }
+        });
+
+        // 使用事件委托处理双击编辑
+        document.getElementById('todoBody').addEventListener('dblclick', (e) => {
+            const target = e.target.closest('.editable-cell');
+            if (!target) return;
+            
+            // 如果已有正在编辑的单元格，先保存
+            if (editingCell && editingCell !== target) {
+                saveEdit();
+            }
+            
+            startEdit(target);
         });
 
         // 使用事件委托处理复选框变化
@@ -595,6 +767,8 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                 const dueDateClass = getDueDateClass(todo.due);
                 const indentClass = \`indent-level-\${Math.min(todo.level, 4)}\`;
 
+                const tagsText = (todo.tags || []).map(tag => \`#\${tag}\`).join(' ');
+                
                 return \`
                     <tr class="\${todo.completed ? 'completed' : ''}" data-todo-index="\${index}">
                         <td style="text-align: center;">
@@ -603,18 +777,34 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                                    \${todo.completed ? 'checked' : ''}
                                    data-todo-index="\${index}">
                         </td>
-                        <td class="\${priorityClass}">\${priorityText}</td>
-                        <td class="content-cell \${indentClass}" data-todo-index="\${index}"
-                            title="\${todo.content}">
+                        <td class="priority-cell \${priorityClass}" 
+                            data-todo-index="\${index}" 
+                            data-field="priority"
+                            title="点击切换优先级">\${priorityText}</td>
+                        <td class="content-cell \${indentClass}" 
+                            data-todo-index="\${index}"
+                            title="点击跳转到文件">
                             \${todo.content}
                         </td>
-                        <td>\${todo.project || '-'}</td>
-                        <td>
+                        <td class="editable-cell" 
+                            data-todo-index="\${index}" 
+                            data-field="project"
+                            data-value="\${todo.project || ''}"
+                            title="双击编辑项目">\${todo.project || '-'}</td>
+                        <td class="editable-cell" 
+                            data-todo-index="\${index}" 
+                            data-field="tags"
+                            data-value="\${tagsText}"
+                            title="双击编辑标签">
                             <div class="tags">
-                                \${(todo.tags || []).map(tag => \`<span class="tag">#\${tag}</span>\`).join('')}
+                                \${(todo.tags || []).map(tag => \`<span class="tag">#\${tag}</span>\`).join('') || '-'}
                             </div>
                         </td>
-                        <td class="due-date \${dueDateClass}">\${todo.due || '-'}</td>
+                        <td class="editable-cell due-date \${dueDateClass}" 
+                            data-todo-index="\${index}" 
+                            data-field="due"
+                            data-value="\${todo.due || ''}"
+                            title="双击编辑截止日期">\${todo.due || '-'}</td>
                         <td>
                             <span class="file-link" data-todo-index="\${index}"
                                   title="\${todo.fileName} (行 \${todo.lineNumber})">
@@ -657,6 +847,133 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
 
         function openTodo(todo) {
             vscode.postMessage({ type: 'openTodo', todo });
+        }
+
+        function editTodo(todo) {
+            vscode.postMessage({ type: 'editTodo', todo });
+        }
+
+        // 切换优先级
+        function cyclePriority(todo) {
+            const priorities = ['', 'L', 'M', 'H'];
+            const currentIndex = priorities.indexOf(todo.priority);
+            const nextIndex = (currentIndex + 1) % priorities.length;
+            const newPriority = priorities[nextIndex];
+            
+            updateTodoField(todo, 'priority', newPriority);
+        }
+
+        // 开始编辑单元格
+        function startEdit(cell) {
+            if (editingCell) return;
+            
+            editingCell = cell;
+            const field = cell.getAttribute('data-field');
+            const value = cell.getAttribute('data-value') || '';
+            const index = parseInt(cell.getAttribute('data-todo-index') || '0');
+            const todo = filteredTodos[index];
+            
+            cell.classList.add('editing');
+            
+            let input;
+            if (field === 'due') {
+                input = document.createElement('input');
+                input.type = 'date';
+                input.value = value;
+            } else {
+                input = document.createElement('input');
+                input.type = 'text';
+                input.value = value;
+            }
+            
+            input.style.width = '100%';
+            
+            // 保存原始内容
+            cell.setAttribute('data-original-html', cell.innerHTML);
+            cell.innerHTML = '';
+            cell.appendChild(input);
+            input.focus();
+            
+            // 回车保存
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveEdit();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelEdit();
+                }
+            });
+        }
+
+        // 保存编辑
+        function saveEdit() {
+            if (!editingCell || isSaving) return;
+            
+            isSaving = true;
+            
+            const input = editingCell.querySelector('input');
+            if (!input) {
+                isSaving = false;
+                return;
+            }
+            
+            const field = editingCell.getAttribute('data-field');
+            const newValue = input.value.trim();
+            const oldValue = editingCell.getAttribute('data-value') || '';
+            const index = parseInt(editingCell.getAttribute('data-todo-index') || '0');
+            const todo = filteredTodos[index];
+            
+            // 保存引用后再清空
+            const cellToRestore = editingCell;
+            const originalHtml = cellToRestore.getAttribute('data-original-html');
+            
+            // 恢复原始显示
+            cellToRestore.innerHTML = originalHtml;
+            cellToRestore.classList.remove('editing');
+            
+            // 清空编辑状态
+            editingCell = null;
+            isSaving = false;
+            
+            // 如果值有变化，更新
+            if (newValue !== oldValue) {
+                updateTodoField(todo, field, newValue);
+            }
+        }
+
+        // 取消编辑
+        function cancelEdit() {
+            if (!editingCell) return;
+            
+            const originalHtml = editingCell.getAttribute('data-original-html');
+            editingCell.innerHTML = originalHtml;
+            editingCell.classList.remove('editing');
+            editingCell = null;
+        }
+
+        // 更新 TODO 字段
+        function updateTodoField(todo, field, value) {
+            const updates = {};
+            
+            if (field === 'tags') {
+                // 将标签字符串转换为数组，移除 # 前缀
+                const tagsStr = value.replace(/#/g, '').trim();
+                updates.tags = tagsStr ? tagsStr.split(/\s+/) : [];
+            } else if (field === 'project') {
+                updates.project = value;
+            } else if (field === 'due') {
+                updates.due = value;
+            } else if (field === 'priority') {
+                updates.priority = value;
+            }
+            
+            // 发送更新请求
+            vscode.postMessage({ 
+                type: 'editTodo', 
+                todo: todo,
+                updates: updates
+            });
         }
 
         // 初始化
