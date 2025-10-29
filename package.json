@@ -2,7 +2,7 @@
   "name": "memento",
   "displayName": "Memento",
   "description": "轻量级 Markdown 笔记管理插件，支持最近文章、标签分类、工作周报",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "wenyg",
   "repository": {
     "type": "git",
