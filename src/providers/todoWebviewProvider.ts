@@ -7,44 +7,32 @@ import { TodoItem, TodoPriority } from '../types';
 import { extractTodosFromDirectory, toggleTodoStatus } from '../utils';
 import { getNotesRootPath } from '../config';
 
-export class TodoWebviewProvider implements vscode.Disposable {
+export class TodoWebviewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'mementoTodoView';
 
-    private _panel?: vscode.WebviewPanel;
+    private _view?: vscode.WebviewView;
     private todos: TodoItem[] = [];
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
     ) { }
 
-    public showPanel() {
-        // 如果面板已经存在，就显示它
-        if (this._panel) {
-            this._panel.reveal(vscode.ViewColumn.One);
-            return;
-        }
+    public resolveWebviewView(
+        webviewView: vscode.WebviewView,
+        context: vscode.WebviewViewResolveContext,
+        _token: vscode.CancellationToken,
+    ) {
+        this._view = webviewView;
 
-        // 创建新的面板
-        this._panel = vscode.window.createWebviewPanel(
-            'mementoTodo',
-            'Memento TODO 列表',
-            vscode.ViewColumn.One,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [this._extensionUri]
-            }
-        );
-
-        this._panel.webview.options = {
+        webviewView.webview.options = {
             enableScripts: true,
             localResourceRoots: [this._extensionUri]
         };
 
-        this._panel.webview.html = this._getHtmlForWebview(this._panel.webview);
+        webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
         // 监听来自 webview 的消息
-        this._panel.webview.onDidReceiveMessage(async (data) => {
+        webviewView.webview.onDidReceiveMessage(async (data) => {
             switch (data.type) {
                 case 'refresh':
                     await this.refresh();
@@ -61,20 +49,8 @@ export class TodoWebviewProvider implements vscode.Disposable {
             }
         });
 
-        // Panel 关闭时清理
-        this._panel.onDidDispose(() => {
-            this._panel = undefined;
-        });
-
         // 初始加载数据
         this.refresh();
-    }
-
-    public dispose() {
-        if (this._panel) {
-            this._panel.dispose();
-            this._panel = undefined;
-        }
     }
 
     public async refresh() {
@@ -85,8 +61,8 @@ export class TodoWebviewProvider implements vscode.Disposable {
             this.todos = await extractTodosFromDirectory(notesPath);
         }
 
-        if (this._panel) {
-            this._panel.webview.postMessage({
+        if (this._view) {
+            this._view.webview.postMessage({
                 type: 'updateTodos',
                 todos: this.todos
             });

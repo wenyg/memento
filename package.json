@@ -117,6 +117,13 @@
           "title": "MEMENTO",
           "icon": "$(notebook)"
         }
+      ],
+      "panel": [
+        {
+          "id": "memento-todo-panel",
+          "title": "Memento TODO",
+          "icon": "$(checklist)"
+        }
       ]
     },
     "views": {
@@ -124,6 +131,14 @@
         {
           "id": "mementoMainView",
           "name": "",
+          "when": "workspaceFolderCount > 0"
+        }
+      ],
+      "memento-todo-panel": [
+        {
+          "id": "mementoTodoView",
+          "name": "TODO 列表",
+          "type": "webview",
           "when": "workspaceFolderCount > 0"
         }
       ]

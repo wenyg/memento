@@ -423,11 +423,10 @@ export function registerCommands(context: vscode.ExtensionContext, mainProvider:
     });
 
     // TODO 相关命令
-    const showTodoPanelDisposable = vscode.commands.registerCommand('memento.showTodoPanel', () => {
+    const showTodoPanelDisposable = vscode.commands.registerCommand('memento.showTodoPanel', async () => {
         console.log('Show TODO panel command triggered');
-        if (todoWebviewProvider) {
-            todoWebviewProvider.showPanel();
-        }
+        // 聚焦到 TODO 视图
+        await vscode.commands.executeCommand('mementoTodoView.focus');
     });
 
     const refreshTodoDisposable = vscode.commands.registerCommand('memento.refreshTodo', async () => {

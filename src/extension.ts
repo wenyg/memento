@@ -28,9 +28,19 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(treeView);
 	console.log('Main tree view registered');
 
-    // 注册 TODO WebView 提供者（编辑器面板模式）
+    // 注册 TODO WebView 提供者（侧边栏视图模式）
     const todoWebviewProvider = new TodoWebviewProvider(context.extensionUri);
-    context.subscriptions.push(todoWebviewProvider);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(
+            TodoWebviewProvider.viewType,
+            todoWebviewProvider,
+            {
+                webviewOptions: {
+                    retainContextWhenHidden: true
+                }
+            }
+        )
+    );
     console.log('TODO WebView provider registered');
 
     // 注册所有命令
