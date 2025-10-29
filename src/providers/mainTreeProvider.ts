@@ -9,23 +9,20 @@ import { MdFileItem, TagItem, CalendarItem } from './base';
 import { MdFilesProvider } from './mdFilesProvider';
 import { TagTreeProvider } from './tagTreeProvider';
 import { CalendarProvider } from './calendarProvider';
-import { TodoTreeProvider, TodoTreeItem } from './todoTreeProvider';
 
-export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem | CalendarItem | TodoTreeItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<MdFileItem | TagItem | CalendarItem | TodoTreeItem | undefined | null | void> = new vscode.EventEmitter<MdFileItem | TagItem | CalendarItem | TodoTreeItem | undefined | null | void>();
-    readonly onDidChangeTreeData: vscode.Event<MdFileItem | TagItem | CalendarItem | TodoTreeItem | undefined | null | void> = this._onDidChangeTreeData.event;
+export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem | CalendarItem> {
+    private _onDidChangeTreeData: vscode.EventEmitter<MdFileItem | TagItem | CalendarItem | undefined | null | void> = new vscode.EventEmitter<MdFileItem | TagItem | CalendarItem | undefined | null | void>();
+    readonly onDidChangeTreeData: vscode.Event<MdFileItem | TagItem | CalendarItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
     private currentMode: ViewMode = ViewMode.FILES;
     private fileProvider: MdFilesProvider;
     private tagProvider: TagTreeProvider;
     private calendarProvider: CalendarProvider;
-    private todoProvider: TodoTreeProvider;
 
     constructor() {
         this.fileProvider = new MdFilesProvider();
         this.tagProvider = new TagTreeProvider();
         this.calendarProvider = new CalendarProvider();
-        this.todoProvider = new TodoTreeProvider();
 
         // 监听所有提供者的变化
         this.fileProvider.onDidChangeTreeData(() => {
@@ -42,12 +39,6 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
 
         this.calendarProvider.onDidChangeTreeData(() => {
             if (this.currentMode === ViewMode.CALENDAR) {
-                this._onDidChangeTreeData.fire();
-            }
-        });
-
-        this.todoProvider.onDidChangeTreeData(() => {
-            if (this.currentMode === ViewMode.TODO) {
                 this._onDidChangeTreeData.fire();
             }
         });
@@ -73,11 +64,6 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
         this._onDidChangeTreeData.fire();
     }
 
-    switchToTodoView(): void {
-        this.currentMode = ViewMode.TODO;
-        this._onDidChangeTreeData.fire();
-    }
-
     refresh(): void {
         if (this.currentMode === ViewMode.FILES) {
             this.fileProvider.refresh();
@@ -85,28 +71,20 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
             this.tagProvider.refresh();
         } else if (this.currentMode === ViewMode.CALENDAR) {
             this.calendarProvider.refresh();
-        } else if (this.currentMode === ViewMode.TODO) {
-            this.todoProvider.refresh();
         }
     }
 
-    getTodoProvider(): TodoTreeProvider {
-        return this.todoProvider;
-    }
-
-    getTreeItem(element: MdFileItem | TagItem | CalendarItem | TodoTreeItem): vscode.TreeItem {
+    getTreeItem(element: MdFileItem | TagItem | CalendarItem): vscode.TreeItem {
         return element;
     }
 
-    getChildren(element?: MdFileItem | TagItem | CalendarItem | TodoTreeItem): Thenable<(MdFileItem | TagItem | CalendarItem | TodoTreeItem)[]> {
+    getChildren(element?: MdFileItem | TagItem | CalendarItem): Thenable<(MdFileItem | TagItem | CalendarItem)[]> {
         if (this.currentMode === ViewMode.FILES) {
             return this.fileProvider.getChildren(element as MdFileItem);
         } else if (this.currentMode === ViewMode.TAGS) {
             return this.tagProvider.getChildren(element as TagItem);
         } else if (this.currentMode === ViewMode.CALENDAR) {
             return this.calendarProvider.getChildren(element as CalendarItem);
-        } else if (this.currentMode === ViewMode.TODO) {
-            return this.todoProvider.getChildren(element as TodoTreeItem);
         } else {
             // SETTINGS 模式
             return this.getSettingsItems(element as CalendarItem);

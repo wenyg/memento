@@ -38,8 +38,7 @@ export enum ViewMode {
     FILES = 'files',
     TAGS = 'tags',
     CALENDAR = 'calendar',
-    SETTINGS = 'settings',
-    TODO = 'todo'
+    SETTINGS = 'settings'
 }
 
 export type CalendarItemType = 'daily' | 'weekly' | 'action' | 'command' | 'file' | 'category' | 'week-item' | 'daily-group';

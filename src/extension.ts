@@ -4,7 +4,7 @@
  */
 
 import * as vscode from 'vscode';
-import { MainTreeProvider } from './providers';
+import { MainTreeProvider, TodoWebviewProvider } from './providers';
 import { registerCommands } from './commands';
 import { getNotesRootPath } from './config';
 
@@ -28,12 +28,17 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(treeView);
 	console.log('Main tree view registered');
 
+    // 注册 TODO WebView 提供者（编辑器面板模式）
+    const todoWebviewProvider = new TodoWebviewProvider(context.extensionUri);
+    context.subscriptions.push(todoWebviewProvider);
+    console.log('TODO WebView provider registered');
+
     // 注册所有命令
-    registerCommands(context, mainProvider);
+    registerCommands(context, mainProvider, todoWebviewProvider);
     console.log('All commands registered');
 
     // 设置文件系统监听器以自动刷新
-    setupFileWatcher(context, mainProvider);
+    setupFileWatcher(context, mainProvider, todoWebviewProvider);
     console.log('File watcher setup completed');
 }
 
@@ -41,7 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
  * 设置文件系统监听器
  * 监听 Markdown 文件的创建、修改和删除
  */
-async function setupFileWatcher(context: vscode.ExtensionContext, mainProvider: MainTreeProvider): Promise<void> {
+async function setupFileWatcher(context: vscode.ExtensionContext, mainProvider: MainTreeProvider, todoWebviewProvider: TodoWebviewProvider): Promise<void> {
     try {
         const notesPath = await getNotesRootPath();
         if (!notesPath) {
@@ -58,18 +63,21 @@ async function setupFileWatcher(context: vscode.ExtensionContext, mainProvider: 
         watcher.onDidCreate(() => {
             console.log('File created, refreshing tree view');
             mainProvider.refresh();
+            todoWebviewProvider.refresh();
         });
 
         // 监听文件修改
         watcher.onDidChange(() => {
             console.log('File changed, refreshing tree view');
             mainProvider.refresh();
+            todoWebviewProvider.refresh();
         });
 
         // 监听文件删除
         watcher.onDidDelete(() => {
             console.log('File deleted, refreshing tree view');
             mainProvider.refresh();
+            todoWebviewProvider.refresh();
         });
 
         // 将监听器添加到订阅中，确保在扩展停用时清理

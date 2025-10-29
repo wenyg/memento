@@ -100,23 +100,14 @@
         "icon": "$(new-file)"
       },
       {
-        "command": "memento.switchToTodoView",
+        "command": "memento.refreshTodo",
+        "title": "Refresh TODO",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "memento.showTodoPanel",
         "title": "TODO List",
         "icon": "$(checklist)"
-      },
-      {
-        "command": "memento.changeTodoGrouping",
-        "title": "Change TODO Grouping",
-        "icon": "$(group-by-ref-type)"
-      },
-      {
-        "command": "memento.toggleTodo",
-        "title": "Toggle TODO Status",
-        "icon": "$(check)"
-      },
-      {
-        "command": "memento.openTodoInFile",
-        "title": "Open in File"
       }
     ],
     "viewsContainers": {
@@ -137,6 +128,7 @@
         }
       ]
     },
+    "viewsWelcome": [],
     "menus": {
       "view/title": [
         {
@@ -155,7 +147,7 @@
           "group": "navigation@3"
         },
         {
-          "command": "memento.switchToTodoView",
+          "command": "memento.showTodoPanel",
           "when": "view == mementoMainView",
           "group": "navigation@4"
         },
@@ -173,24 +165,9 @@
           "command": "memento.refreshMdFiles",
           "when": "view == mementoMainView",
           "group": "navigation@7"
-        },
-        {
-          "command": "memento.changeTodoGrouping",
-          "when": "view == mementoMainView",
-          "group": "navigation@8"
         }
       ],
-      "view/item/context": [
-        {
-          "command": "memento.toggleTodo",
-          "when": "viewItem == todoItemPending || viewItem == todoItemCompleted",
-          "group": "inline"
-        },
-        {
-          "command": "memento.openTodoInFile",
-          "when": "viewItem == todoItemPending || viewItem == todoItemCompleted"
-        }
-      ]
+      "view/item/context": []
     },
     "configuration": {
       "title": "Memento",

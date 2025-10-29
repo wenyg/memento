@@ -19,7 +19,7 @@ import {
     fillFrontMatterDateForAllFiles,
     toggleTodoStatus 
 } from './utils';
-import { CalendarItem, MainTreeProvider } from './providers';
+import { CalendarItem, MainTreeProvider, TodoWebviewProvider } from './providers';
 
 /**
  * 打开周期性笔记（日记或周报）
@@ -351,47 +351,11 @@ export async function openTodoInFile(todo: TodoItem): Promise<void> {
     }
 }
 
-/**
- * 切换 TODO 完成状态
- */
-export async function toggleTodoItem(todo: TodoItem, mainProvider: MainTreeProvider): Promise<void> {
-    const success = await toggleTodoStatus(todo);
-    if (success) {
-        mainProvider.refresh();
-        vscode.window.showInformationMessage(`TODO 已${todo.completed ? '标记为未完成' : '标记为完成'}`);
-    } else {
-        vscode.window.showErrorMessage('切换 TODO 状态失败');
-    }
-}
-
-/**
- * 改变 TODO 分组方式
- */
-export async function changeTodoGrouping(mainProvider: MainTreeProvider): Promise<void> {
-    const options = [
-        { label: '📁 按文件分组', value: 'file' as const },
-        { label: '📊 按项目分组', value: 'project' as const },
-        { label: '🎯 按优先级分组', value: 'priority' as const },
-        { label: '✅按状态分组', value: 'status' as const }
-    ];
-
-    const selected = await vscode.window.showQuickPick(
-        options.map(o => o.label),
-        { placeHolder: '选择 TODO 分组方式' }
-    );
-
-    if (selected) {
-        const option = options.find(o => o.label === selected);
-        if (option) {
-            mainProvider.getTodoProvider().setGroupBy(option.value);
-        }
-    }
-}
 
 /**
  * 注册所有命令
  */
-export function registerCommands(context: vscode.ExtensionContext, mainProvider: MainTreeProvider): void {
+export function registerCommands(context: vscode.ExtensionContext, mainProvider: MainTreeProvider, todoWebviewProvider?: TodoWebviewProvider): void {
     // Hello World 命令
     const helloWorldDisposable = vscode.commands.registerCommand('memento.helloWorld', () => {
         vscode.window.showInformationMessage('Hello World from memento!');
@@ -459,21 +423,17 @@ export function registerCommands(context: vscode.ExtensionContext, mainProvider:
     });
 
     // TODO 相关命令
-    const switchToTodoViewDisposable = vscode.commands.registerCommand('memento.switchToTodoView', () => {
-        console.log('Switch to todo view command triggered');
-        mainProvider.switchToTodoView();
+    const showTodoPanelDisposable = vscode.commands.registerCommand('memento.showTodoPanel', () => {
+        console.log('Show TODO panel command triggered');
+        if (todoWebviewProvider) {
+            todoWebviewProvider.showPanel();
+        }
     });
 
-    const openTodoInFileDisposable = vscode.commands.registerCommand('memento.openTodoInFile', async (todo: TodoItem) => {
-        await openTodoInFile(todo);
-    });
-
-    const toggleTodoDisposable = vscode.commands.registerCommand('memento.toggleTodo', async (todo: TodoItem) => {
-        await toggleTodoItem(todo, mainProvider);
-    });
-
-    const changeTodoGroupingDisposable = vscode.commands.registerCommand('memento.changeTodoGrouping', async () => {
-        await changeTodoGrouping(mainProvider);
+    const refreshTodoDisposable = vscode.commands.registerCommand('memento.refreshTodo', async () => {
+        if (todoWebviewProvider) {
+            todoWebviewProvider.refresh();
+        }
     });
 
     // 将所有命令添加到订阅中
@@ -492,9 +452,7 @@ export function registerCommands(context: vscode.ExtensionContext, mainProvider:
         openDailyNoteDisposable,
         openWeeklyNoteDisposable,
         createNoteDisposable,
-        switchToTodoViewDisposable,
-        openTodoInFileDisposable,
-        toggleTodoDisposable,
-        changeTodoGroupingDisposable
+        showTodoPanelDisposable,
+        refreshTodoDisposable
     );
 }
