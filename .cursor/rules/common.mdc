@@ -1,0 +1,197 @@
+# Memento VSCode 扩展 - AI 开发规则
+
+## 项目快速参考
+
+### 核心文件速查表
+
+```
+修改内容                        主要涉及文件
+─────────────────────────────────────────────────────
+添加新命令                      commands.ts + package.json
+修改文件扫描逻辑                utils.ts (findMarkdownFiles)
+修改标签提取                    utils.ts (extractTagsFromFile)
+修改 Front Matter 解析          utils.ts (parseFrontMatter)
+添加/修改配置项                 config.ts + types.ts
+修改文件列表视图                providers/mdFilesProvider.ts
+修改标签树视图                  providers/tagTreeProvider.ts
+修改日历视图                    providers/calendarProvider.ts
+修改设置界面                    providers/mainTreeProvider.ts
+添加新视图模式                  所有 providers + types.ts
+修改模板系统                    config.ts + commands.ts
+```
+
+### 关键数据结构
+
+```typescript
+// Markdown 文件信息
+interface MdFileInfo {
+    path: string;           // 绝对路径
+    birthtime: Date;        // 创建时间（或 Front Matter date）
+    relativePath: string;   // 相对路径
+    displayTitle: string;   // 显示标题
+    tags?: string[];        // 标签列表
+}
+
+// 配置结构
+interface MementoConfig {
+    excludeFolders: string[];              // 排除文件夹
+    dailyNotesPath: string;                // 日记路径
+    dailyNoteFileNameFormat: string;       // 日记文件名格式
+    dailyNoteTemplatePath: string;         // 日记模板路径
+    weeklyNotesPath: string;               // 周报路径
+    weeklyNoteFileNameFormat: string;      // 周报文件名格式
+    weeklyNoteTemplatePath: string;        // 周报模板路径
+    defaultNotePath: string;               // 新笔记默认路径
+}
+
+// 视图模式
+enum ViewMode {
+    FILES = 'files',        // 文件列表视图
+    TAGS = 'tags',          // 标签树视图
+    CALENDAR = 'calendar',  // 日历视图
+    SETTINGS = 'settings'   // 设置视图
+}
+```
+
+### 核心工具函数
+
+```typescript
+// utils.ts
+findMarkdownFiles(dir)           // 扫描所有 MD 文件
+findMarkdownFilesWithTags(dir)   // 扫描并提取标签
+extractTagsFromFile(path)        // 从文件提取标签
+extractFirstHeading(path)        // 提取文件标题
+parseFrontMatter(content)        // 解析 Front Matter
+
+// config.ts
+getNotesRootPath()               // 获取笔记根目录
+loadMementoConfig(path)          // 加载配置
+saveMementoConfig(path, config)  // 保存配置
+```
+
+### 开发工作流
+
+1. **添加新命令**:
+   - 在 `commands.ts` 实现函数
+   - 在 `registerCommands()` 注册
+   - 在 `package.json` 的 `contributes.commands` 声明
+   - 添加到 `context.subscriptions`
+
+2. **修改视图**:
+   - 修改对应 Provider 的 `getChildren()`
+   - 调用 `this._onDidChangeTreeData.fire()` 刷新
+   - 或在命令中调用 `mainProvider.refresh()`
+
+3. **添加配置项**:
+   - 在 `types.ts` 的 `MementoConfig` 添加字段
+   - 在 `config.ts` 的 `defaultConfig` 添加默认值
+   - 在设置界面添加编辑入口（可选）
+
+4. **修改文件扫描**:
+   - 修改 `utils.ts` 中的扫描函数
+   - 注意处理排除文件夹逻辑
+   - 保持异步操作和错误处理
+
+### 重要注意事项
+
+⚠️ **必须遵守**:
+1. 所有文件操作使用 `async/await` + try-catch
+2. 所有 disposable 添加到 `context.subscriptions`
+3. 路径拼接使用 `path.join()` 不用字符串拼接
+4. 文件读写指定 `'utf-8'` 编码
+5. 正则表达式使用 `\p{L}` 支持 Unicode/中文
+6. 数据变更后调用 `refresh()` 更新视图
+7. 用户操作后显示反馈（showInformationMessage/showErrorMessage）
+
+⚠️ **性能考虑**:
+- 大量文件时使用懒加载
+- 避免重复扫描，考虑缓存
+- 文件监听器已设置，文件变更会自动刷新
+
+### 标签系统规则
+
+**标签来源**（按优先级）:
+1. Front Matter 中的 `tags` 字段（数组格式）
+2. 正文中的 `#标签` 格式
+
+**层级标签**: 使用 `/` 分隔，如 `#工作/项目/重要`
+
+**标签提取**: 自动排除代码块中的标签
+
+### Front Matter 格式
+
+```yaml
+---
+title: 标题
+date: 2025-01-15
+tags: [标签1, 标签2, 分类/子标签]
+---
+```
+
+**解析优先级**:
+- 标题: Front Matter title > 第一个 # 标题 > 文件名
+- 日期: Front Matter date > 文件创建时间
+- 标签: Front Matter tags + 正文 #标签
+
+### 模板变量
+
+支持的变量（用于日记/周报模板）:
+- `{{year}}` - 4位年份
+- `{{month}}` - 2位月份
+- `{{day}}` - 2位日期
+- `{{week}}` - 2位周数
+- `{{title}}` - 自动生成标题
+- `{{date}}` - ISO 格式日期
+
+### 常见错误和解决方案
+
+**问题**: 文件列表不更新
+**解决**: 确保调用 `mainProvider.refresh()` 或 `_onDidChangeTreeData.fire()`
+
+**问题**: 中文标签无法识别
+**解决**: 正则表达式使用 `[\p{L}\p{N}_\-\/]+` 和 `u` 标志
+
+**问题**: 路径在 Windows 上出错
+**解决**: 使用 `path.join()` 而不是字符串拼接
+
+**问题**: 命令未生效
+**解决**: 检查是否在 `package.json` 中声明 + `registerCommands` 中注册
+
+**问题**: 内存泄漏
+**解决**: 所有 disposable 添加到 `context.subscriptions`
+
+### 项目特殊约定
+
+1. **4 空格缩进** - 所有 TypeScript 文件
+2. **命名规范** - 类使用 PascalCase，函数和变量使用 camelCase
+3. **命令前缀** - 所有命令以 `memento.` 开头
+4. **配置存储** - 本地配置保存在 `.memento/config.json`
+5. **日志输出** - 使用 `console.log` 和 `console.error`
+
+### 测试和调试
+
+```bash
+# 编译
+npm run compile
+
+# 打包
+npm run package
+
+# 发布
+npm run publish:patch   # 修订版本
+npm run publish:minor   # 次要版本
+npm run publish:major   # 主要版本
+```
+
+**调试**: 按 `F5` 启动扩展开发主机，在 Debug Console 查看日志
+
+### 参考文档
+
+完整交接文档: `HANDOVER.md`
+更新日志: `CHANGELOG.md`
+发布指南: `PUBLISH_GUIDE.md`
+
+---
+
+📌 **关键原则**: 保持简单、注重性能、用户体验优先
+
