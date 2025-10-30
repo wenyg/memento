@@ -80,7 +80,7 @@
       },
       {
         "command": "memento.fillFrontMatterDate",
-        "title": "Memento: 填充 Front Matter Date 字段"
+        "title": "Memento: 填充日期字段(根据文件创建日期)"
       },
       {
         "command": "memento.openDailyNote",

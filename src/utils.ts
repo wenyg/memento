@@ -349,7 +349,7 @@ export function getWeekNumber(date: Date): number {
 }
 
 /**
- * 为单个文件填充 Front Matter Date 字段
+ * 为单个文件填充日期字段(根据文件创建日期)
  */
 export async function fillFrontMatterDateForFile(filePath: string): Promise<boolean> {
     try {
@@ -394,7 +394,7 @@ export async function fillFrontMatterDateForFile(filePath: string): Promise<bool
 }
 
 /**
- * 为所有文件填充 Front Matter Date 字段
+ * 为所有文件填充日期字段(根据文件创建日期)
  */
 export async function fillFrontMatterDateForAllFiles(dir: string): Promise<void> {
     const mdFiles: string[] = [];

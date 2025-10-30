@@ -339,7 +339,7 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
         if (element.label === '🔧 工具') {
             return [
                 new CalendarItem(
-                    '填充 Front Matter Date 字段',
+                    '填充日期字段(根据文件创建日期)',
                     vscode.TreeItemCollapsibleState.None,
                     'command',
                     () => vscode.commands.executeCommand('memento.fillFrontMatterDate')

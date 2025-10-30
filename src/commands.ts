@@ -291,7 +291,7 @@ tags: []
 }
 
 /**
- * 填充 Front Matter Date 字段
+ * 填充日期字段(根据文件创建日期)
  */
 export async function fillFrontMatterDate(): Promise<void> {
     console.log('Fill Front Matter Date command triggered');
