@@ -24,7 +24,7 @@ export class TodoTreeItem extends vscode.TreeItem {
             const descriptions: string[] = [];
             
             if (todoItem.due) {
-                descriptions.push(`📅 ${todoItem.due}`);
+                descriptions.push(`due: ${todoItem.due}`);
             }
 
             this.description = descriptions.join(' ');

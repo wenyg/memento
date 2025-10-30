@@ -443,11 +443,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             color: var(--vscode-descriptionForeground);
         }
 
-        .empty-state-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-        }
-
         .indent-level-0 { padding-left: 8px; }
         .indent-level-1 { padding-left: 20px; }
         .indent-level-2 { padding-left: 32px; }
@@ -462,13 +457,11 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
     <div class="toolbar">
-        <button id="refreshBtn" title="刷新">🔄 刷新</button>
         <input type="text" id="searchInput" placeholder="搜索 TODO...">
-        <select id="filterStatus">
-            <option value="all">全部状态</option>
-            <option value="pending">未完成</option>
-            <option value="completed">已完成</option>
-        </select>
+        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="showCompleted" style="cursor: pointer;">
+            <span>显示已完成</span>
+        </label>
     </div>
 
     <div class="stats" id="stats"></div>
@@ -478,18 +471,16 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             <thead>
                 <tr>
                     <th style="width: 50px; text-align: center;">状态</th>
-                    <th class="sortable" data-sort="content" style="width: 35%;">内容</th>
-                    <th class="sortable" data-sort="tags" style="width: 15%;" title="双击编辑标签">标签</th>
+                    <th class="sortable" data-sort="content" style="width: 40%;">内容</th>
+                    <th class="sortable" data-sort="tags" style="width: 18%;" title="双击编辑标签">标签</th>
                     <th class="sortable" data-sort="due" style="width: 120px; text-align: center;" title="双击编辑截止日期">截止</th>
-                    <th class="sortable" data-sort="endTime" style="width: 120px; text-align: center;">完成</th>
-                    <th class="sortable" data-sort="file" style="width: 18%;">文件</th>
+                    <th class="sortable" data-sort="file" style="width: 20%;">文件</th>
                 </tr>
             </thead>
             <tbody id="todoBody">
                 <tr>
-                    <td colspan="6" class="empty-state">
-                        <div class="empty-state-icon">📝</div>
-                        <div>加载中...</div>
+                    <td colspan="5" class="empty-state">
+                        加载中...
                     </td>
                 </tr>
             </tbody>
@@ -513,18 +504,13 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             }
         });
 
-        // 刷新按钮
-        document.getElementById('refreshBtn').addEventListener('click', () => {
-            vscode.postMessage({ type: 'refresh' });
-        });
-
         // 搜索
         document.getElementById('searchInput').addEventListener('input', (e) => {
             applyFilters();
         });
 
-        // 过滤器
-        document.getElementById('filterStatus').addEventListener('change', applyFilters);
+        // 显示已完成复选框
+        document.getElementById('showCompleted').addEventListener('change', applyFilters);
 
         // 表头排序
         document.querySelectorAll('th.sortable').forEach(th => {
@@ -601,7 +587,7 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
 
         function applyFilters() {
             const search = document.getElementById('searchInput').value.toLowerCase();
-            const status = document.getElementById('filterStatus').value;
+            const showCompleted = document.getElementById('showCompleted').checked;
 
             filteredTodos = allTodos.filter(todo => {
                 // 搜索过滤
@@ -609,9 +595,10 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                     return false;
                 }
 
-                // 状态过滤
-                if (status === 'pending' && todo.completed) return false;
-                if (status === 'completed' && !todo.completed) return false;
+                // 状态过滤 - 如果不显示已完成，则过滤掉已完成的
+                if (!showCompleted && todo.completed) {
+                    return false;
+                }
 
                 return true;
             });
@@ -640,10 +627,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                     case 'due':
                         aVal = a.due || '9999-12-31';
                         bVal = b.due || '9999-12-31';
-                        break;
-                    case 'endTime':
-                        aVal = a.endTime || '9999-12-31';
-                        bVal = b.endTime || '9999-12-31';
                         break;
                     case 'file':
                         aVal = a.fileName.toLowerCase();
@@ -678,9 +661,8 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             if (filteredTodos.length === 0) {
                 tbody.innerHTML = \`
                     <tr>
-                        <td colspan="6" class="empty-state">
-                            <div class="empty-state-icon">📭</div>
-                            <div>没有找到 TODO 项</div>
+                        <td colspan="5" class="empty-state">
+                            没有找到 TODO 项
                         </td>
                     </tr>
                 \`;
@@ -721,10 +703,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                             data-field="due"
                             data-value="\${todo.due || ''}"
                             title="截止日期: \${todo.due || '未设置'} (双击编辑)">\${todo.due || '<span style="opacity: 0.3;">-</span>'}</td>
-                        <td style="text-align: center; font-size: 11px; color: var(--vscode-descriptionForeground);"
-                            title="完成时间: \${todo.endTime || '未完成'}">
-                            \${todo.endTime ? '<span style="color: var(--vscode-charts-green);">✓ ' + todo.endTime + '</span>' : '<span style="opacity: 0.3;">-</span>'}
-                        </td>
                         <td style="font-size: 11px;">
                             <span class="file-link" data-todo-index="\${index}"
                                   title="跳转到: \${todo.fileName}:\${todo.lineNumber}">
