@@ -432,19 +432,21 @@ export async function fillFrontMatterDateForAllFiles(dir: string): Promise<void>
 
 /**
  * 解析 TODO 行的属性
- * 支持格式: - [ ] todo content #tag1 #tag2 project:my_project due:2023-01-01 priority:H
+ * 支持格式: - [ ] todo content #tag1 #tag2 project:my_project due:2023-01-01 end_time:2023-01-02 priority:H
  */
 export function parseTodoAttributes(line: string): {
     content: string;
     tags: string[];
     project?: string;
     due?: string;
+    endTime?: string;
     priority: TodoPriority;
 } {
     let content = line;
     const tags: string[] = [];
     let project: string | undefined;
     let due: string | undefined;
+    let endTime: string | undefined;
     let priority: TodoPriority = TodoPriority.NONE;
 
     // 提取标签 #tag
@@ -465,6 +467,12 @@ export function parseTodoAttributes(line: string): {
         due = dueMatch[1];
     }
 
+    // 提取完成时间 end_time:YYYY-MM-DD
+    const endTimeMatch = content.match(/end_time:(\d{4}-\d{2}-\d{2})/);
+    if (endTimeMatch) {
+        endTime = endTimeMatch[1];
+    }
+
     // 提取优先级 priority:H/M/L
     const priorityMatch = content.match(/priority:([HML])/);
     if (priorityMatch) {
@@ -476,10 +484,11 @@ export function parseTodoAttributes(line: string): {
         .replace(/#[\p{L}\p{N}_\-\/]+/gu, '')
         .replace(/project:[\p{L}\p{N}_\-\/]+/gu, '')
         .replace(/due:\d{4}-\d{2}-\d{2}/g, '')
+        .replace(/end_time:\d{4}-\d{2}-\d{2}/g, '')
         .replace(/priority:[HML]/g, '')
         .trim();
 
-    return { content, tags, project, due, priority };
+    return { content, tags, project, due, endTime, priority };
 }
 
 /**
@@ -518,6 +527,7 @@ export async function extractTodosFromFile(filePath: string): Promise<TodoItem[]
                     tags: attributes.tags,
                     project: attributes.project,
                     due: attributes.due,
+                    endTime: attributes.endTime,
                     priority: attributes.priority
                 });
             }
@@ -569,9 +579,24 @@ export async function toggleTodoStatus(todo: TodoItem): Promise<boolean> {
 
         if (todo.lineNumber > 0 && todo.lineNumber <= lines.length) {
             const line = lines[todo.lineNumber - 1];
-            const newLine = todo.completed
-                ? line.replace(/- \[x\]/i, '- [ ]')
-                : line.replace(/- \[ \]/, '- [x]');
+            
+            let newLine: string;
+            if (todo.completed) {
+                // 从完成变为未完成：移除 end_time
+                newLine = line
+                    .replace(/- \[x\]/i, '- [ ]')
+                    .replace(/\s*end_time:\d{4}-\d{2}-\d{2}/g, '');
+            } else {
+                // 从未完成变为完成：添加 end_time
+                const today = new Date().toISOString().split('T')[0];
+                newLine = line.replace(/- \[ \]/, '- [x]');
+                
+                // 如果还没有 end_time，添加它
+                if (!newLine.includes('end_time:')) {
+                    // 在行尾添加 end_time（在其他属性之后）
+                    newLine = `${newLine} end_time:${today}`;
+                }
+            }
 
             lines[todo.lineNumber - 1] = newLine;
             await fs.promises.writeFile(todo.filePath, lines.join('\n'), 'utf-8');
@@ -617,11 +642,16 @@ export async function updateTodoAttributes(
         const checked = todoMatch[2];
         let todoContent = todoMatch[3];
 
+        // 保存原有的 end_time（如果存在）
+        const endTimeMatch = todoContent.match(/end_time:(\d{4}-\d{2}-\d{2})/);
+        const existingEndTime = endTimeMatch ? endTimeMatch[1] : undefined;
+
         // 移除现有的所有属性
         todoContent = todoContent
             .replace(/#[\p{L}\p{N}_\-\/]+/gu, '')
             .replace(/project:[\p{L}\p{N}_\-\/]+/gu, '')
             .replace(/due:\d{4}-\d{2}-\d{2}/g, '')
+            .replace(/end_time:\d{4}-\d{2}-\d{2}/g, '')
             .replace(/priority:[HML]/g, '')
             .trim();
 
@@ -649,9 +679,14 @@ export async function updateTodoAttributes(
         }
 
         // 添加优先级 - 如果更新中包含 priority，使用新值；否则保留原值
-        const finalPriority = updates.priority !== undefined ? updates.priority : todo.priority;
-        if (finalPriority && finalPriority !== TodoPriority.NONE) {
+        const finalPriority: TodoPriority = updates.priority !== undefined ? updates.priority : todo.priority;
+        if (finalPriority) {
             attributes.push(`priority:${finalPriority}`);
+        }
+
+        // 添加完成时间 - 保留原有的 end_time（只有在任务已完成时才保留）
+        if (checked.toLowerCase() === 'x' && existingEndTime) {
+            attributes.push(`end_time:${existingEndTime}`);
         }
 
         // 重建 TODO 行

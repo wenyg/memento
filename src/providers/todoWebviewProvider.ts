@@ -287,6 +287,7 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
 
         table {
             width: 100%;
+            table-layout: fixed;
             border-collapse: collapse;
             background: var(--vscode-editor-background);
         }
@@ -306,6 +307,8 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             cursor: pointer;
             user-select: none;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         th:hover {
@@ -315,21 +318,27 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
         th.sortable::after {
             content: ' ⇅';
             opacity: 0.3;
+            font-size: 10px;
         }
 
         th.sorted-asc::after {
             content: ' ↑';
             opacity: 1;
+            font-size: 10px;
         }
 
         th.sorted-desc::after {
             content: ' ↓';
             opacity: 1;
+            font-size: 10px;
         }
 
         td {
             padding: 8px;
             border-bottom: 1px solid var(--vscode-panel-border);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         tr:hover {
@@ -337,7 +346,12 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
         }
 
         tr.completed {
-            opacity: 0.6;
+            opacity: 0.5;
+            text-decoration: line-through;
+        }
+
+        tr.completed td {
+            color: var(--vscode-disabledForeground);
         }
 
         .status-checkbox {
@@ -351,25 +365,31 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
         .priority-high {
             color: #f44336;
             font-weight: bold;
+            font-size: 13px;
         }
 
         .priority-medium {
             color: #ff9800;
+            font-weight: 600;
+            font-size: 13px;
         }
 
         .priority-low {
-            color: #2196f3;
+            color: #4caf50;
+            font-size: 13px;
         }
 
         .priority-none {
             color: var(--vscode-foreground);
-            opacity: 0.5;
+            opacity: 0.3;
+            font-size: 12px;
         }
 
         .tags {
             display: flex;
             gap: 4px;
             flex-wrap: wrap;
+            align-items: center;
         }
 
         .tag {
@@ -377,28 +397,35 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             color: var(--vscode-badge-foreground);
             padding: 2px 6px;
             border-radius: 3px;
-            font-size: 11px;
+            font-size: 10px;
+            white-space: nowrap;
         }
 
         .content-cell {
             cursor: pointer;
-            max-width: 300px;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            white-space: normal !important;
+            word-wrap: break-word;
+            overflow: visible !important;
+            line-height: 1.4;
         }
 
         .content-cell:hover {
             text-decoration: underline;
+            background: var(--vscode-list-activeSelectionBackground);
+            color: var(--vscode-list-activeSelectionForeground);
         }
 
         .file-link {
             color: var(--vscode-textLink-foreground);
             cursor: pointer;
             text-decoration: none;
+            font-size: 11px;
+            opacity: 0.8;
         }
 
         .file-link:hover {
             text-decoration: underline;
+            opacity: 1;
         }
 
         .editable-cell {
@@ -442,19 +469,31 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
 
         .due-date {
             white-space: nowrap;
+            font-size: 11px;
+            text-align: center;
         }
 
         .due-date.overdue {
             color: #f44336;
             font-weight: bold;
+            background: rgba(244, 67, 54, 0.1);
+            padding: 2px 4px;
+            border-radius: 3px;
         }
 
         .due-date.today {
             color: #ff9800;
+            font-weight: 600;
+            background: rgba(255, 152, 0, 0.1);
+            padding: 2px 4px;
+            border-radius: 3px;
         }
 
         .due-date.upcoming {
             color: #4caf50;
+            background: rgba(76, 175, 80, 0.1);
+            padding: 2px 4px;
+            border-radius: 3px;
         }
 
         .empty-state {
@@ -468,10 +507,16 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             margin-bottom: 16px;
         }
 
+        .indent-level-0 { padding-left: 8px; }
         .indent-level-1 { padding-left: 20px; }
-        .indent-level-2 { padding-left: 40px; }
-        .indent-level-3 { padding-left: 60px; }
-        .indent-level-4 { padding-left: 80px; }
+        .indent-level-2 { padding-left: 32px; }
+        .indent-level-3 { padding-left: 44px; }
+        .indent-level-4 { padding-left: 56px; }
+
+        .indent-level-1::before { content: '└ '; opacity: 0.3; }
+        .indent-level-2::before { content: '└─ '; opacity: 0.3; }
+        .indent-level-3::before { content: '└── '; opacity: 0.3; }
+        .indent-level-4::before { content: '└─── '; opacity: 0.3; }
     </style>
 </head>
 <body>
@@ -501,18 +546,19 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
         <table id="todoTable">
             <thead>
                 <tr>
-                    <th style="width: 40px;">状态</th>
-                    <th class="sortable" data-sort="priority" style="width: 80px;" title="点击切换优先级">优先级</th>
-                    <th class="sortable" data-sort="content">内容</th>
-                    <th class="sortable" data-sort="project" style="width: 120px;" title="双击编辑项目">项目</th>
-                    <th class="sortable" data-sort="tags" style="width: 150px;" title="双击编辑标签">标签</th>
-                    <th class="sortable" data-sort="due" style="width: 110px;" title="双击编辑截止日期">截止日期</th>
-                    <th class="sortable" data-sort="file" style="width: 150px;">文件</th>
+                    <th style="width: 50px; text-align: center;">状态</th>
+                    <th class="sortable" data-sort="priority" style="width: 60px; text-align: center;" title="点击切换优先级">优先级</th>
+                    <th class="sortable" data-sort="content" style="width: 30%;">内容</th>
+                    <th class="sortable" data-sort="project" style="width: 10%;" title="双击编辑项目">项目</th>
+                    <th class="sortable" data-sort="tags" style="width: 12%;" title="双击编辑标签">标签</th>
+                    <th class="sortable" data-sort="due" style="width: 100px; text-align: center;" title="双击编辑截止日期">截止</th>
+                    <th class="sortable" data-sort="endTime" style="width: 100px; text-align: center;">完成</th>
+                    <th class="sortable" data-sort="file" style="width: 13%;">文件</th>
                 </tr>
             </thead>
             <tbody id="todoBody">
                 <tr>
-                    <td colspan="7" class="empty-state">
+                    <td colspan="8" class="empty-state">
                         <div class="empty-state-icon">📝</div>
                         <div>加载中...</div>
                     </td>
@@ -719,6 +765,10 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                         aVal = a.due || '9999-12-31';
                         bVal = b.due || '9999-12-31';
                         break;
+                    case 'endTime':
+                        aVal = a.endTime || '9999-12-31';
+                        bVal = b.endTime || '9999-12-31';
+                        break;
                     case 'file':
                         aVal = a.fileName.toLowerCase();
                         bVal = b.fileName.toLowerCase();
@@ -752,7 +802,7 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             if (filteredTodos.length === 0) {
                 tbody.innerHTML = \`
                     <tr>
-                        <td colspan="7" class="empty-state">
+                        <td colspan="8" class="empty-state">
                             <div class="empty-state-icon">📭</div>
                             <div>没有找到 TODO 项</div>
                         </td>
@@ -771,44 +821,51 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                 
                 return \`
                     <tr class="\${todo.completed ? 'completed' : ''}" data-todo-index="\${index}">
-                        <td style="text-align: center;">
+                        <td style="text-align: center; padding: 4px;">
                             <input type="checkbox" 
                                    class="status-checkbox" 
                                    \${todo.completed ? 'checked' : ''}
-                                   data-todo-index="\${index}">
+                                   data-todo-index="\${index}"
+                                   title="\${todo.completed ? '标记为未完成' : '标记为完成'}">
                         </td>
                         <td class="priority-cell \${priorityClass}" 
                             data-todo-index="\${index}" 
                             data-field="priority"
-                            title="点击切换优先级">\${priorityText}</td>
+                            style="text-align: center;"
+                            title="点击切换优先级 (当前: \${priorityText})">\${priorityText}</td>
                         <td class="content-cell \${indentClass}" 
                             data-todo-index="\${index}"
-                            title="点击跳转到文件">
+                            title="点击跳转到文件: \${todo.fileName}:\${todo.lineNumber}">
                             \${todo.content}
                         </td>
                         <td class="editable-cell" 
                             data-todo-index="\${index}" 
                             data-field="project"
                             data-value="\${todo.project || ''}"
-                            title="双击编辑项目">\${todo.project || '-'}</td>
+                            style="font-size: 11px;"
+                            title="项目: \${todo.project || '无'} (双击编辑)">\${todo.project || '<span style="opacity: 0.3;">-</span>'}</td>
                         <td class="editable-cell" 
                             data-todo-index="\${index}" 
                             data-field="tags"
                             data-value="\${tagsText}"
-                            title="双击编辑标签">
+                            title="标签 (双击编辑)">
                             <div class="tags">
-                                \${(todo.tags || []).map(tag => \`<span class="tag">#\${tag}</span>\`).join('') || '-'}
+                                \${(todo.tags || []).map(tag => \`<span class="tag">#\${tag}</span>\`).join('') || '<span style="opacity: 0.3; font-size: 11px;">-</span>'}
                             </div>
                         </td>
                         <td class="editable-cell due-date \${dueDateClass}" 
                             data-todo-index="\${index}" 
                             data-field="due"
                             data-value="\${todo.due || ''}"
-                            title="双击编辑截止日期">\${todo.due || '-'}</td>
-                        <td>
+                            title="截止日期: \${todo.due || '未设置'} (双击编辑)">\${todo.due || '<span style="opacity: 0.3;">-</span>'}</td>
+                        <td style="text-align: center; font-size: 11px; color: var(--vscode-descriptionForeground);"
+                            title="完成时间: \${todo.endTime || '未完成'}">
+                            \${todo.endTime ? '<span style="color: var(--vscode-charts-green);">✓ ' + todo.endTime + '</span>' : '<span style="opacity: 0.3;">-</span>'}
+                        </td>
+                        <td style="font-size: 11px;">
                             <span class="file-link" data-todo-index="\${index}"
-                                  title="\${todo.fileName} (行 \${todo.lineNumber})">
-                                \${todo.fileName}
+                                  title="跳转到: \${todo.fileName}:\${todo.lineNumber}">
+                                \${todo.fileName.replace('.md', '')}
                             </span>
                         </td>
                     </tr>

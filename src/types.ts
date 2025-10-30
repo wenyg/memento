@@ -67,6 +67,7 @@ export interface TodoItem {
     tags: string[];
     project?: string;
     due?: string;
+    endTime?: string;  // 完成时间 YYYY-MM-DD
     priority: TodoPriority;
 }
 
