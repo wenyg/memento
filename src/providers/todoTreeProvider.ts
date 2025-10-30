@@ -24,7 +24,9 @@ export class TodoTreeItem extends vscode.TreeItem {
             const descriptions: string[] = [];
             
             if (todoItem.due) {
-                descriptions.push(`due: ${todoItem.due}`);
+                // 格式化日期显示：如果是今年则只显示月-日
+                const dueDate = this.formatShortDate(todoItem.due);
+                descriptions.push(`📅 ${dueDate}`);
             }
 
             this.description = descriptions.join(' ');
@@ -68,6 +70,25 @@ export class TodoTreeItem extends vscode.TreeItem {
             this.iconPath = new vscode.ThemeIcon('folder');
             this.contextValue = 'todoGroup';
         }
+    }
+    
+    /**
+     * 格式化短日期显示
+     */
+    private formatShortDate(dateString: string): string {
+        if (!dateString) {
+            return '';
+        }
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const [year, month, day] = dateString.split('-');
+        
+        // 如果是今年，只显示 月-日
+        if (parseInt(year) === currentYear) {
+            return `${month}-${day}`;
+        }
+        // 否则显示完整日期
+        return dateString;
     }
 }
 

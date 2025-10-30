@@ -481,9 +481,9 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             <thead>
                 <tr>
                     <th style="width: 50px; text-align: center;">状态</th>
-                    <th class="sortable" data-sort="content" style="width: 40%;">内容</th>
+                    <th class="sortable" data-sort="content" style="width: 42%;">内容</th>
                     <th class="sortable" data-sort="tags" style="width: 18%;" title="双击编辑标签">标签</th>
-                    <th class="sortable" data-sort="due" style="width: 120px; text-align: center;" title="双击编辑截止日期">截止</th>
+                    <th class="sortable" data-sort="due" style="width: 40px; text-align: center;" title="双击编辑截止日期">截止</th>
                     <th class="sortable" data-sort="file" style="width: 20%;">文件</th>
                 </tr>
             </thead>
@@ -756,7 +756,7 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                             data-todo-index="\${index}" 
                             data-field="due"
                             data-value="\${todo.due || ''}"
-                            title="截止日期: \${todo.due || '未设置'} (双击编辑)">\${todo.due || '<span style="opacity: 0.3;">-</span>'}</td>
+                            title="截止日期: \${todo.due || '未设置'} (双击编辑)">\${todo.due ? formatShortDate(todo.due) : '<span style="opacity: 0.3;">-</span>'}</td>
                         <td style="font-size: 11px;">
                             <span class="file-link" data-todo-index="\${index}"
                                   title="跳转到: \${todo.fileName}:\${todo.lineNumber}">
@@ -926,6 +926,21 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
             return \`\${year}-\${month}-\${day}\`;
+        }
+
+        // 辅助函数：格式化短日期显示（如果是今年则只显示月-日）
+        function formatShortDate(dateString) {
+            if (!dateString) return '';
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const [year, month, day] = dateString.split('-');
+            
+            // 如果是今年，只显示 月-日
+            if (parseInt(year) === currentYear) {
+                return \`\${month}-\${day}\`;
+            }
+            // 否则显示完整日期
+            return dateString;
         }
 
         // 初始化
