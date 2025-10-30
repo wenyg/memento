@@ -31,12 +31,18 @@ export class MdFilesProvider implements vscode.TreeDataProvider<MdFileItem> {
 
     getChildren(element?: MdFileItem): Thenable<MdFileItem[]> {
         if (!element) {
-            // 根级别 - 返回所有 markdown 文件
-            return Promise.resolve(
-                this.mdFiles.map(fileInfo =>
-                    new MdFileItem(fileInfo, vscode.TreeItemCollapsibleState.None)
-                )
+            // 根级别 - 首先显示"新建笔记"操作，然后是所有 markdown 文件
+            const createNoteItem = new MdFileItem(
+                null,
+                vscode.TreeItemCollapsibleState.None,
+                true
             );
+            
+            const fileItems = this.mdFiles.map(fileInfo =>
+                new MdFileItem(fileInfo, vscode.TreeItemCollapsibleState.None, false)
+            );
+            
+            return Promise.resolve([createNoteItem, ...fileItems]);
         }
         return Promise.resolve([]);
     }

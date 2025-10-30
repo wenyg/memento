@@ -6,21 +6,48 @@ import * as vscode from 'vscode';
 import { MdFileInfo, TagInfo, CalendarItemType } from '../types';
 
 export class MdFileItem extends vscode.TreeItem {
+    public readonly fileInfo: MdFileInfo | null;
+    public readonly isCreateAction: boolean;
+
     constructor(
-        public readonly fileInfo: MdFileInfo,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState
+        fileInfo: MdFileInfo | null,
+        collapsibleState: vscode.TreeItemCollapsibleState,
+        isCreateAction: boolean = false
     ) {
-        super(fileInfo.displayTitle, collapsibleState);
-        this.tooltip = `${this.fileInfo.relativePath}\nCreated: ${this.fileInfo.birthtime.toLocaleString()}`;
-        this.description = this.fileInfo.birthtime.toLocaleDateString();
-        this.resourceUri = vscode.Uri.file(this.fileInfo.path);
-        this.command = {
-            command: 'markdown.showPreview',
-            title: 'Open Preview',
-            arguments: [this.resourceUri]
-        };
-        this.contextValue = 'mdFile';
-        this.iconPath = new vscode.ThemeIcon('markdown');
+        // 如果是"新建笔记"操作
+        if (isCreateAction) {
+            super('新建笔记', collapsibleState);
+        } else if (fileInfo) {
+            super(fileInfo.displayTitle, collapsibleState);
+        } else {
+            super('', collapsibleState);
+        }
+
+        // 在 super() 之后赋值属性
+        this.fileInfo = fileInfo;
+        this.isCreateAction = isCreateAction;
+
+        // 设置其他属性
+        if (isCreateAction) {
+            this.tooltip = '点击创建新笔记';
+            this.command = {
+                command: 'memento.createNote',
+                title: 'Create Note'
+            };
+            this.contextValue = 'createNoteAction';
+            this.iconPath = new vscode.ThemeIcon('new-file', new vscode.ThemeColor('charts.green'));
+        } else if (fileInfo) {
+            this.tooltip = `${fileInfo.relativePath}\nCreated: ${fileInfo.birthtime.toLocaleString()}`;
+            this.description = fileInfo.birthtime.toLocaleDateString();
+            this.resourceUri = vscode.Uri.file(fileInfo.path);
+            this.command = {
+                command: 'markdown.showPreview',
+                title: 'Open Preview',
+                arguments: [this.resourceUri]
+            };
+            this.contextValue = 'mdFile';
+            this.iconPath = new vscode.ThemeIcon('markdown');
+        }
     }
 }
 

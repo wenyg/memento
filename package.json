@@ -96,8 +96,7 @@
       },
       {
         "command": "memento.createNote",
-        "title": "Memento: 新建笔记",
-        "icon": "$(new-file)"
+        "title": "Memento: 新建笔记"
       },
       {
         "command": "memento.refreshTodo",
@@ -175,19 +174,14 @@
           "group": "navigation@4"
         },
         {
-          "command": "memento.createNote",
+          "command": "memento.switchToSettingsView",
           "when": "view == mementoMainView",
           "group": "navigation@5"
         },
         {
-          "command": "memento.switchToSettingsView",
-          "when": "view == mementoMainView",
-          "group": "navigation@6"
-        },
-        {
           "command": "memento.refreshMdFiles",
           "when": "view == mementoMainView",
-          "group": "navigation@7"
+          "group": "navigation@6"
         }
       ],
       "view/item/context": []
