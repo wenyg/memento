@@ -1,8 +1,3 @@
-/**
- * TODO 控制面板 TreeProvider
- * 提供过滤和视图控制选项
- */
-
 import * as vscode from 'vscode';
 import { TodoItem } from '../types';
 
@@ -208,15 +203,15 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
         
         // 获取本周、上周、本月的日期范围
         const thisWeekStart = this.getWeekStart(now);
+        const thisWeekEnd = new Date(thisWeekStart);
+        thisWeekEnd.setDate(thisWeekEnd.getDate() + 6);
+
         const lastWeekStart = new Date(thisWeekStart);
         lastWeekStart.setDate(lastWeekStart.getDate() - 7);
         const lastWeekEnd = new Date(thisWeekStart);
         lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
         
         const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        
-        const thisWeekEnd = new Date(thisWeekStart);
-        thisWeekEnd.setDate(thisWeekEnd.getDate() + 6);
         
         return {
             thisWeekCompleted: this.todos.filter(t => 
@@ -272,4 +267,3 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
         return `${year}-${month}-${day}`;
     }
 }
-

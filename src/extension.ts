@@ -17,8 +17,11 @@ export function activate(context: vscode.ExtensionContext) {
     // 输出诊断信息
 	console.log('Memento extension is now active!');
 
+    // 创建 TODO 控制面板提供者（需要先创建，因为 mainProvider 需要它）
+    const todoControlProvider = new TodoControlProvider();
+
     // 创建主树数据提供者
-	const mainProvider = new MainTreeProvider();
+	const mainProvider = new MainTreeProvider(todoControlProvider);
 
     // 注册主树视图
 	const treeView = vscode.window.createTreeView('mementoMainView', {
@@ -28,15 +31,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(treeView);
 	console.log('Main tree view registered');
-
-    // 注册 TODO 控制面板提供者
-    const todoControlProvider = new TodoControlProvider();
-    const todoControlTreeView = vscode.window.createTreeView('mementoTodoControlView', {
-        treeDataProvider: todoControlProvider,
-        showCollapseAll: false
-    });
-    context.subscriptions.push(todoControlTreeView);
-    console.log('TODO Control tree view registered');
 
     // 注册 TODO WebView 提供者（侧边栏视图模式）
     const todoWebviewProvider = new TodoWebviewProvider(context.extensionUri);

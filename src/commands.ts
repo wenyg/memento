@@ -17,7 +17,8 @@ import {
     getAllFolders, 
     getWeekNumber, 
     fillFrontMatterDateForAllFiles,
-    toggleTodoStatus 
+    toggleTodoStatus,
+    extractTodosFromDirectory
 } from './utils';
 import { CalendarItem, MainTreeProvider, TodoWebviewProvider, TodoControlProvider } from './providers';
 import { TodoFilterType } from './providers/todoControlProvider';
@@ -388,6 +389,11 @@ export function registerCommands(
         mainProvider.switchToCalendarView();
     });
 
+    const switchToTodoViewDisposable = vscode.commands.registerCommand('memento.switchToTodoView', () => {
+        console.log('Switch to TODO view command triggered');
+        mainProvider.switchToTodoView();
+    });
+
     const switchToSettingsViewDisposable = vscode.commands.registerCommand('memento.switchToSettingsView', () => {
         console.log('Switch to settings view command triggered');
         mainProvider.switchToSettingsView();
@@ -431,7 +437,8 @@ export function registerCommands(
     // TODO 相关命令
     const showTodoPanelDisposable = vscode.commands.registerCommand('memento.showTodoPanel', async () => {
         console.log('Show TODO panel command triggered');
-        // 聚焦到 TODO 视图
+        // 切换到 TODO 视图并聚焦
+        mainProvider.switchToTodoView();
         await vscode.commands.executeCommand('mementoTodoView.focus');
     });
 
@@ -439,7 +446,6 @@ export function registerCommands(
         if (todoWebviewProvider) {
             const notesPath = await getNotesRootPath();
             if (notesPath && todoControlProvider) {
-                const { extractTodosFromDirectory } = await import('./utils');
                 const todos = await extractTodosFromDirectory(notesPath);
                 todoControlProvider.updateTodos(todos);
             }
@@ -462,6 +468,7 @@ export function registerCommands(
         switchToFileViewDisposable,
         switchToTagViewDisposable,
         switchToCalendarViewDisposable,
+        switchToTodoViewDisposable,
         switchToSettingsViewDisposable,
         refreshDisposable,
         executeCalendarActionDisposable,

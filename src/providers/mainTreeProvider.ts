@@ -9,20 +9,23 @@ import { MdFileItem, TagItem, CalendarItem } from './base';
 import { MdFilesProvider } from './mdFilesProvider';
 import { TagTreeProvider } from './tagTreeProvider';
 import { CalendarProvider } from './calendarProvider';
+import { TodoControlProvider, TodoControlItem } from './todoControlProvider';
 
-export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem | CalendarItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<MdFileItem | TagItem | CalendarItem | undefined | null | void> = new vscode.EventEmitter<MdFileItem | TagItem | CalendarItem | undefined | null | void>();
-    readonly onDidChangeTreeData: vscode.Event<MdFileItem | TagItem | CalendarItem | undefined | null | void> = this._onDidChangeTreeData.event;
+export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | TagItem | CalendarItem | TodoControlItem> {
+    private _onDidChangeTreeData: vscode.EventEmitter<MdFileItem | TagItem | CalendarItem | TodoControlItem | undefined | null | void> = new vscode.EventEmitter<MdFileItem | TagItem | CalendarItem | TodoControlItem | undefined | null | void>();
+    readonly onDidChangeTreeData: vscode.Event<MdFileItem | TagItem | CalendarItem | TodoControlItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
     private currentMode: ViewMode = ViewMode.FILES;
     private fileProvider: MdFilesProvider;
     private tagProvider: TagTreeProvider;
     private calendarProvider: CalendarProvider;
+    private todoControlProvider: TodoControlProvider;
 
-    constructor() {
+    constructor(todoControlProvider: TodoControlProvider) {
         this.fileProvider = new MdFilesProvider();
         this.tagProvider = new TagTreeProvider();
         this.calendarProvider = new CalendarProvider();
+        this.todoControlProvider = todoControlProvider;
 
         // 监听所有提供者的变化
         this.fileProvider.onDidChangeTreeData(() => {
@@ -39,6 +42,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
 
         this.calendarProvider.onDidChangeTreeData(() => {
             if (this.currentMode === ViewMode.CALENDAR) {
+                this._onDidChangeTreeData.fire();
+            }
+        });
+
+        this.todoControlProvider.onDidChangeTreeData(() => {
+            if (this.currentMode === ViewMode.TODO) {
                 this._onDidChangeTreeData.fire();
             }
         });
@@ -59,9 +68,18 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
         this._onDidChangeTreeData.fire();
     }
 
+    switchToTodoView(): void {
+        this.currentMode = ViewMode.TODO;
+        this._onDidChangeTreeData.fire();
+    }
+
     switchToSettingsView(): void {
         this.currentMode = ViewMode.SETTINGS;
         this._onDidChangeTreeData.fire();
+    }
+
+    getTodoControlProvider(): TodoControlProvider {
+        return this.todoControlProvider;
     }
 
     refresh(): void {
@@ -71,20 +89,24 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
             this.tagProvider.refresh();
         } else if (this.currentMode === ViewMode.CALENDAR) {
             this.calendarProvider.refresh();
+        } else if (this.currentMode === ViewMode.TODO) {
+            this.todoControlProvider.refresh();
         }
     }
 
-    getTreeItem(element: MdFileItem | TagItem | CalendarItem): vscode.TreeItem {
+    getTreeItem(element: MdFileItem | TagItem | CalendarItem | TodoControlItem): vscode.TreeItem {
         return element;
     }
 
-    getChildren(element?: MdFileItem | TagItem | CalendarItem): Thenable<(MdFileItem | TagItem | CalendarItem)[]> {
+    getChildren(element?: MdFileItem | TagItem | CalendarItem | TodoControlItem): Thenable<(MdFileItem | TagItem | CalendarItem | TodoControlItem)[]> {
         if (this.currentMode === ViewMode.FILES) {
             return this.fileProvider.getChildren(element as MdFileItem);
         } else if (this.currentMode === ViewMode.TAGS) {
             return this.tagProvider.getChildren(element as TagItem);
         } else if (this.currentMode === ViewMode.CALENDAR) {
             return this.calendarProvider.getChildren(element as CalendarItem);
+        } else if (this.currentMode === ViewMode.TODO) {
+            return this.todoControlProvider.getChildren(element as TodoControlItem);
         } else {
             // SETTINGS 模式
             return this.getSettingsItems(element as CalendarItem);

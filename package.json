@@ -110,6 +110,10 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "memento.switchToTodoView",
+        "title": "Switch to TODO View"
+      },
+      {
         "command": "memento.setTodoFilter",
         "title": "Set TODO Filter"
       }
@@ -139,11 +143,6 @@
         }
       ],
       "memento-todo-panel": [
-        {
-          "id": "mementoTodoControlView",
-          "name": "控制面板",
-          "when": "workspaceFolderCount > 0"
-        },
         {
           "id": "mementoTodoView",
           "name": "TODO 列表",

@@ -213,50 +213,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             padding: 10px;
         }
 
-        .toolbar {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
-            padding: 8px;
-            background-color: var(--vscode-editor-background);
-            border-bottom: 1px solid var(--vscode-panel-border);
-            flex-wrap: wrap;
-        }
-
-        .toolbar button {
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            padding: 6px 12px;
-            cursor: pointer;
-            border-radius: 2px;
-            font-size: 12px;
-        }
-
-        .toolbar button:hover {
-            background: var(--vscode-button-hoverBackground);
-        }
-
-        .toolbar select {
-            background: var(--vscode-dropdown-background);
-            color: var(--vscode-dropdown-foreground);
-            border: 1px solid var(--vscode-dropdown-border);
-            padding: 4px 8px;
-            border-radius: 2px;
-            font-size: 12px;
-        }
-
-        .toolbar input[type="text"] {
-            background: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-            border: 1px solid var(--vscode-input-border);
-            padding: 4px 8px;
-            border-radius: 2px;
-            font-size: 12px;
-            flex: 1;
-            min-width: 150px;
-        }
-
         .stats {
             padding: 8px;
             margin-bottom: 8px;
@@ -470,10 +426,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
     </style>
 </head>
 <body>
-    <div class="toolbar">
-        <input type="text" id="searchInput" placeholder="搜索 TODO...">
-    </div>
-
     <div class="stats" id="stats"></div>
 
     <div class="table-container">
@@ -481,15 +433,16 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             <thead>
                 <tr>
                     <th style="width: 50px; text-align: center;">状态</th>
-                    <th class="sortable" data-sort="content" style="width: 42%;">内容</th>
-                    <th class="sortable" data-sort="tags" style="width: 18%;" title="双击编辑标签">标签</th>
-                    <th class="sortable" data-sort="due" style="width: 40px; text-align: center;" title="双击编辑截止日期">截止</th>
-                    <th class="sortable" data-sort="file" style="width: 20%;">文件</th>
+                    <th class="sortable" data-sort="content" style="width: 38%;">内容</th>
+                    <th class="sortable" data-sort="tags" style="width: 16%;" title="双击编辑标签">标签</th>
+                    <th class="sortable" data-sort="due" style="width: 60px; text-align: center;" title="双击编辑截止日期">截止</th>
+                    <th class="sortable" data-sort="endTime" style="width: 60px; text-align: center;">完成</th>
+                    <th class="sortable" data-sort="file" style="width: 18%;">文件</th>
                 </tr>
             </thead>
             <tbody id="todoBody">
                 <tr>
-                    <td colspan="5" class="empty-state">
+                    <td colspan="6" class="empty-state">
                         加载中...
                     </td>
                 </tr>
@@ -520,11 +473,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                     applyFilters();
                     break;
             }
-        });
-
-        // 搜索
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            applyFilters();
         });
 
         // 表头排序
@@ -601,7 +549,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
         });
 
         function applyFilters() {
-            const search = document.getElementById('searchInput').value.toLowerCase();
             const now = new Date();
             const today = getDateString(now);
             const thisWeekStart = getWeekStart(now);
@@ -614,11 +561,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
             filteredTodos = allTodos.filter(todo => {
-                // 搜索过滤
-                if (search && !todo.content.toLowerCase().includes(search)) {
-                    return false;
-                }
-
                 // 状态过滤
                 switch (currentFilter) {
                     case 'pending':
@@ -682,6 +624,10 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                         aVal = a.due || '9999-12-31';
                         bVal = b.due || '9999-12-31';
                         break;
+                    case 'endTime':
+                        aVal = a.endTime || '9999-12-31';
+                        bVal = b.endTime || '9999-12-31';
+                        break;
                     case 'file':
                         aVal = a.fileName.toLowerCase();
                         bVal = b.fileName.toLowerCase();
@@ -715,7 +661,7 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             if (filteredTodos.length === 0) {
                 tbody.innerHTML = \`
                     <tr>
-                        <td colspan="5" class="empty-state">
+                        <td colspan="6" class="empty-state">
                             没有找到 TODO 项
                         </td>
                     </tr>
@@ -757,6 +703,9 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                             data-field="due"
                             data-value="\${todo.due || ''}"
                             title="截止日期: \${todo.due || '未设置'} (双击编辑)">\${todo.due ? formatShortDate(todo.due) : '<span style="opacity: 0.3;">-</span>'}</td>
+                        <td style="text-align: center; font-size: 11px;" title="完成时间: \${todo.endTime || '未完成'}">
+                            \${todo.endTime ? '<span style="color: var(--vscode-charts-green);">' + formatShortDate(todo.endTime) + '</span>' : '<span style="opacity: 0.3;">-</span>'}
+                        </td>
                         <td style="font-size: 11px;">
                             <span class="file-link" data-todo-index="\${index}"
                                   title="跳转到: \${todo.fileName}:\${todo.lineNumber}">

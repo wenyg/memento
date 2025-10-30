@@ -38,6 +38,7 @@ export enum ViewMode {
     FILES = 'files',
     TAGS = 'tags',
     CALENDAR = 'calendar',
+    TODO = 'todo',
     SETTINGS = 'settings'
 }
 
