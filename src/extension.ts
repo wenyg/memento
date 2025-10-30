@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { MainTreeProvider, TodoWebviewProvider, TodoControlProvider } from './providers';
 import { registerCommands } from './commands';
 import { getNotesRootPath } from './config';
+import { extractTodosFromDirectory } from './utils';
 
 /**
  * 扩展激活函数
@@ -56,8 +57,11 @@ export function activate(context: vscode.ExtensionContext) {
     registerCommands(context, mainProvider, todoWebviewProvider, todoControlProvider);
     console.log('All commands registered');
 
+    // 初始化 TODO 数据
+    refreshTodoViews(todoWebviewProvider, todoControlProvider);
+
     // 设置文件系统监听器以自动刷新
-    setupFileWatcher(context, mainProvider, todoWebviewProvider);
+    setupFileWatcher(context, mainProvider, todoWebviewProvider, todoControlProvider);
     console.log('File watcher setup completed');
 }
 
@@ -65,7 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
  * 设置文件系统监听器
  * 监听 Markdown 文件的创建、修改和删除
  */
-async function setupFileWatcher(context: vscode.ExtensionContext, mainProvider: MainTreeProvider, todoWebviewProvider: TodoWebviewProvider): Promise<void> {
+async function setupFileWatcher(context: vscode.ExtensionContext, mainProvider: MainTreeProvider, todoWebviewProvider: TodoWebviewProvider, todoControlProvider?: TodoControlProvider): Promise<void> {
     try {
         const notesPath = await getNotesRootPath();
         if (!notesPath) {
@@ -79,24 +83,24 @@ async function setupFileWatcher(context: vscode.ExtensionContext, mainProvider: 
         );
 
         // 监听文件创建
-        watcher.onDidCreate(() => {
+        watcher.onDidCreate(async () => {
             console.log('File created, refreshing tree view');
             mainProvider.refresh();
-            todoWebviewProvider.refresh();
+            await refreshTodoViews(todoWebviewProvider, todoControlProvider);
         });
 
         // 监听文件修改
-        watcher.onDidChange(() => {
+        watcher.onDidChange(async () => {
             console.log('File changed, refreshing tree view');
             mainProvider.refresh();
-            todoWebviewProvider.refresh();
+            await refreshTodoViews(todoWebviewProvider, todoControlProvider);
         });
 
         // 监听文件删除
-        watcher.onDidDelete(() => {
+        watcher.onDidDelete(async () => {
             console.log('File deleted, refreshing tree view');
             mainProvider.refresh();
-            todoWebviewProvider.refresh();
+            await refreshTodoViews(todoWebviewProvider, todoControlProvider);
         });
 
         // 将监听器添加到订阅中，确保在扩展停用时清理
@@ -105,6 +109,20 @@ async function setupFileWatcher(context: vscode.ExtensionContext, mainProvider: 
     } catch (error) {
         console.error('Error setting up file watcher:', error);
     }
+}
+
+/**
+ * 刷新 TODO 相关视图
+ */
+async function refreshTodoViews(todoWebviewProvider: TodoWebviewProvider, todoControlProvider?: TodoControlProvider): Promise<void> {
+    const notesPath = await getNotesRootPath();
+    if (notesPath) {
+        const todos = await extractTodosFromDirectory(notesPath);
+        if (todoControlProvider) {
+            todoControlProvider.updateTodos(todos);
+        }
+    }
+    todoWebviewProvider.refresh();
 }
 
 /**

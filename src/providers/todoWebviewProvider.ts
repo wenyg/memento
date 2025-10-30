@@ -7,7 +7,7 @@ import { TodoItem } from '../types';
 import { extractTodosFromDirectory, toggleTodoStatus, updateTodoAttributes } from '../utils';
 import { getNotesRootPath } from '../config';
 
-export type TodoFilterType = 'all' | 'pending' | 'completed';
+export type TodoFilterType = 'all' | 'pending' | 'completed' | 'thisWeekCompleted' | 'lastWeekCompleted' | 'thisMonthCompleted' | 'overdue' | 'dueToday' | 'dueThisWeek';
 
 export class TodoWebviewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'mementoTodoView';
@@ -602,6 +602,16 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
 
         function applyFilters() {
             const search = document.getElementById('searchInput').value.toLowerCase();
+            const now = new Date();
+            const today = getDateString(now);
+            const thisWeekStart = getWeekStart(now);
+            const thisWeekEnd = new Date(thisWeekStart);
+            thisWeekEnd.setDate(thisWeekEnd.getDate() + 6);
+            const lastWeekStart = new Date(thisWeekStart);
+            lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+            const lastWeekEnd = new Date(thisWeekStart);
+            lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
+            const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
             filteredTodos = allTodos.filter(todo => {
                 // 搜索过滤
@@ -610,13 +620,39 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                 }
 
                 // 状态过滤
-                if (currentFilter === 'pending' && todo.completed) {
-                    return false;
+                switch (currentFilter) {
+                    case 'pending':
+                        if (todo.completed) return false;
+                        break;
+                    case 'completed':
+                        if (!todo.completed) return false;
+                        break;
+                    case 'thisWeekCompleted':
+                        if (!todo.completed || !todo.endTime) return false;
+                        if (todo.endTime < getDateString(thisWeekStart) || todo.endTime > getDateString(thisWeekEnd)) return false;
+                        break;
+                    case 'lastWeekCompleted':
+                        if (!todo.completed || !todo.endTime) return false;
+                        if (todo.endTime < getDateString(lastWeekStart) || todo.endTime > getDateString(lastWeekEnd)) return false;
+                        break;
+                    case 'thisMonthCompleted':
+                        if (!todo.completed || !todo.endTime) return false;
+                        if (todo.endTime < getDateString(thisMonthStart)) return false;
+                        break;
+                    case 'overdue':
+                        if (todo.completed || !todo.due || todo.due >= today) return false;
+                        break;
+                    case 'dueToday':
+                        if (todo.completed || todo.due !== today) return false;
+                        break;
+                    case 'dueThisWeek':
+                        if (todo.completed || !todo.due) return false;
+                        if (todo.due < getDateString(thisWeekStart) || todo.due > getDateString(thisWeekEnd)) return false;
+                        break;
+                    case 'all':
+                        // 不过滤
+                        break;
                 }
-                if (currentFilter === 'completed' && !todo.completed) {
-                    return false;
-                }
-                // 'all' 不过滤
 
                 return true;
             });
@@ -874,6 +910,22 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                 todo: todo,
                 updates: updates
             });
+        }
+
+        // 辅助函数：获取一周的开始日期（周一）
+        function getWeekStart(date) {
+            const d = new Date(date);
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            return new Date(d.setDate(diff));
+        }
+
+        // 辅助函数：将日期转换为 YYYY-MM-DD 格式
+        function getDateString(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return \`\${year}-\${month}-\${day}\`;
         }
 
         // 初始化

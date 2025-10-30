@@ -437,6 +437,12 @@ export function registerCommands(
 
     const refreshTodoDisposable = vscode.commands.registerCommand('memento.refreshTodo', async () => {
         if (todoWebviewProvider) {
+            const notesPath = await getNotesRootPath();
+            if (notesPath && todoControlProvider) {
+                const { extractTodosFromDirectory } = await import('./utils');
+                const todos = await extractTodosFromDirectory(notesPath);
+                todoControlProvider.updateTodos(todos);
+            }
             todoWebviewProvider.refresh();
         }
     });
