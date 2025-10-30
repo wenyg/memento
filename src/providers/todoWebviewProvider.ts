@@ -7,11 +7,14 @@ import { TodoItem } from '../types';
 import { extractTodosFromDirectory, toggleTodoStatus, updateTodoAttributes } from '../utils';
 import { getNotesRootPath } from '../config';
 
+export type TodoFilterType = 'all' | 'pending' | 'completed';
+
 export class TodoWebviewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'mementoTodoView';
 
     private _view?: vscode.WebviewView;
     private todos: TodoItem[] = [];
+    private currentFilter: TodoFilterType = 'pending';
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -67,7 +70,18 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
         if (this._view) {
             this._view.webview.postMessage({
                 type: 'updateTodos',
-                todos: this.todos
+                todos: this.todos,
+                filter: this.currentFilter
+            });
+        }
+    }
+
+    public setFilter(filterType: TodoFilterType) {
+        this.currentFilter = filterType;
+        if (this._view) {
+            this._view.webview.postMessage({
+                type: 'setFilter',
+                filter: filterType
             });
         }
     }
@@ -458,10 +472,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
 <body>
     <div class="toolbar">
         <input type="text" id="searchInput" placeholder="搜索 TODO...">
-        <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;">
-            <input type="checkbox" id="showCompleted" style="cursor: pointer;">
-            <span>显示已完成</span>
-        </label>
     </div>
 
     <div class="stats" id="stats"></div>
@@ -492,6 +502,7 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
         let allTodos = [];
         let filteredTodos = [];
         let currentSort = { column: null, direction: 'asc' };
+        let currentFilter = 'pending';
 
         // 接收来自扩展的消息
         window.addEventListener('message', event => {
@@ -499,6 +510,13 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             switch (message.type) {
                 case 'updateTodos':
                     allTodos = message.todos;
+                    if (message.filter) {
+                        currentFilter = message.filter;
+                    }
+                    applyFilters();
+                    break;
+                case 'setFilter':
+                    currentFilter = message.filter;
                     applyFilters();
                     break;
             }
@@ -508,9 +526,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
         document.getElementById('searchInput').addEventListener('input', (e) => {
             applyFilters();
         });
-
-        // 显示已完成复选框
-        document.getElementById('showCompleted').addEventListener('change', applyFilters);
 
         // 表头排序
         document.querySelectorAll('th.sortable').forEach(th => {
@@ -587,7 +602,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
 
         function applyFilters() {
             const search = document.getElementById('searchInput').value.toLowerCase();
-            const showCompleted = document.getElementById('showCompleted').checked;
 
             filteredTodos = allTodos.filter(todo => {
                 // 搜索过滤
@@ -595,10 +609,14 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                     return false;
                 }
 
-                // 状态过滤 - 如果不显示已完成，则过滤掉已完成的
-                if (!showCompleted && todo.completed) {
+                // 状态过滤
+                if (currentFilter === 'pending' && todo.completed) {
                     return false;
                 }
+                if (currentFilter === 'completed' && !todo.completed) {
+                    return false;
+                }
+                // 'all' 不过滤
 
                 return true;
             });

@@ -4,7 +4,7 @@
  */
 
 import * as vscode from 'vscode';
-import { MainTreeProvider, TodoWebviewProvider } from './providers';
+import { MainTreeProvider, TodoWebviewProvider, TodoControlProvider } from './providers';
 import { registerCommands } from './commands';
 import { getNotesRootPath } from './config';
 
@@ -28,6 +28,15 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(treeView);
 	console.log('Main tree view registered');
 
+    // 注册 TODO 控制面板提供者
+    const todoControlProvider = new TodoControlProvider();
+    const todoControlTreeView = vscode.window.createTreeView('mementoTodoControlView', {
+        treeDataProvider: todoControlProvider,
+        showCollapseAll: false
+    });
+    context.subscriptions.push(todoControlTreeView);
+    console.log('TODO Control tree view registered');
+
     // 注册 TODO WebView 提供者（侧边栏视图模式）
     const todoWebviewProvider = new TodoWebviewProvider(context.extensionUri);
     context.subscriptions.push(
@@ -44,7 +53,7 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('TODO WebView provider registered');
 
     // 注册所有命令
-    registerCommands(context, mainProvider, todoWebviewProvider);
+    registerCommands(context, mainProvider, todoWebviewProvider, todoControlProvider);
     console.log('All commands registered');
 
     // 设置文件系统监听器以自动刷新

@@ -19,7 +19,8 @@ import {
     fillFrontMatterDateForAllFiles,
     toggleTodoStatus 
 } from './utils';
-import { CalendarItem, MainTreeProvider, TodoWebviewProvider } from './providers';
+import { CalendarItem, MainTreeProvider, TodoWebviewProvider, TodoControlProvider } from './providers';
+import { TodoFilterType } from './providers/todoControlProvider';
 
 /**
  * 打开周期性笔记（日记或周报）
@@ -355,7 +356,12 @@ export async function openTodoInFile(todo: TodoItem): Promise<void> {
 /**
  * 注册所有命令
  */
-export function registerCommands(context: vscode.ExtensionContext, mainProvider: MainTreeProvider, todoWebviewProvider?: TodoWebviewProvider): void {
+export function registerCommands(
+    context: vscode.ExtensionContext, 
+    mainProvider: MainTreeProvider, 
+    todoWebviewProvider?: TodoWebviewProvider,
+    todoControlProvider?: TodoControlProvider
+): void {
     // Hello World 命令
     const helloWorldDisposable = vscode.commands.registerCommand('memento.helloWorld', () => {
         vscode.window.showInformationMessage('Hello World from memento!');
@@ -435,6 +441,14 @@ export function registerCommands(context: vscode.ExtensionContext, mainProvider:
         }
     });
 
+    // 设置 TODO 过滤器
+    const setTodoFilterDisposable = vscode.commands.registerCommand('memento.setTodoFilter', async (filterType: TodoFilterType) => {
+        if (todoControlProvider && todoWebviewProvider) {
+            todoControlProvider.setFilter(filterType);
+            todoWebviewProvider.setFilter(filterType);
+        }
+    });
+
     // 将所有命令添加到订阅中
     context.subscriptions.push(
         helloWorldDisposable,
@@ -452,6 +466,7 @@ export function registerCommands(context: vscode.ExtensionContext, mainProvider:
         openWeeklyNoteDisposable,
         createNoteDisposable,
         showTodoPanelDisposable,
-        refreshTodoDisposable
+        refreshTodoDisposable,
+        setTodoFilterDisposable
     );
 }
