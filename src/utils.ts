@@ -432,7 +432,7 @@ export async function fillFrontMatterDateForAllFiles(dir: string): Promise<void>
 
 /**
  * 解析 TODO 行的属性
- * 支持格式: - [ ] todo content #tag1 #tag2 due:2023-01-01 end_time:2023-01-02
+ * 支持格式: - [ ] todo content #tag1 #tag2 due:2023-01-01 done:2023-01-02
  */
 export function parseTodoAttributes(line: string): {
     content: string;
@@ -457,8 +457,8 @@ export function parseTodoAttributes(line: string): {
         due = dueMatch[1];
     }
 
-    // 提取完成时间 end_time:YYYY-MM-DD
-    const endTimeMatch = content.match(/end_time:(\d{4}-\d{2}-\d{2})/);
+    // 提取完成时间 done:YYYY-MM-DD
+    const endTimeMatch = content.match(/done:(\d{4}-\d{2}-\d{2})/);
     if (endTimeMatch) {
         endTime = endTimeMatch[1];
     }
@@ -467,7 +467,7 @@ export function parseTodoAttributes(line: string): {
     content = content
         .replace(/#[\p{L}\p{N}_\-\/]+/gu, '')
         .replace(/due:\d{4}-\d{2}-\d{2}/g, '')
-        .replace(/end_time:\d{4}-\d{2}-\d{2}/g, '')
+        .replace(/done:\d{4}-\d{2}-\d{2}/g, '')
         .trim();
 
     return { content, tags, due, endTime };
@@ -562,19 +562,19 @@ export async function toggleTodoStatus(todo: TodoItem): Promise<boolean> {
             
             let newLine: string;
             if (todo.completed) {
-                // 从完成变为未完成：移除 end_time
+                // 从完成变为未完成：移除 done
                 newLine = line
                     .replace(/- \[x\]/i, '- [ ]')
-                    .replace(/\s*end_time:\d{4}-\d{2}-\d{2}/g, '');
+                    .replace(/\s*done:\d{4}-\d{2}-\d{2}/g, '');
             } else {
-                // 从未完成变为完成：添加 end_time
+                // 从未完成变为完成：添加 done
                 const today = new Date().toISOString().split('T')[0];
                 newLine = line.replace(/- \[ \]/, '- [x]');
                 
-                // 如果还没有 end_time，添加它
-                if (!newLine.includes('end_time:')) {
-                    // 在行尾添加 end_time（在其他属性之后）
-                    newLine = `${newLine} end_time:${today}`;
+                // 如果还没有 done，添加它
+                if (!newLine.includes('done:')) {
+                    // 在行尾添加 done（在其他属性之后）
+                    newLine = `${newLine} done:${today}`;
                 }
             }
 
@@ -620,15 +620,15 @@ export async function updateTodoAttributes(
         const checked = todoMatch[2];
         let todoContent = todoMatch[3];
 
-        // 保存原有的 end_time（如果存在）
-        const endTimeMatch = todoContent.match(/end_time:(\d{4}-\d{2}-\d{2})/);
+        // 保存原有的 done（如果存在）
+        const endTimeMatch = todoContent.match(/done:(\d{4}-\d{2}-\d{2})/);
         const existingEndTime = endTimeMatch ? endTimeMatch[1] : undefined;
 
         // 移除现有的所有属性
         todoContent = todoContent
             .replace(/#[\p{L}\p{N}_\-\/]+/gu, '')
             .replace(/due:\d{4}-\d{2}-\d{2}/g, '')
-            .replace(/end_time:\d{4}-\d{2}-\d{2}/g, '')
+            .replace(/done:\d{4}-\d{2}-\d{2}/g, '')
             .trim();
 
         // 构建新的属性字符串，保留未更新的原有属性
@@ -648,9 +648,9 @@ export async function updateTodoAttributes(
             attributes.push(`due:${finalDue}`);
         }
 
-        // 添加完成时间 - 保留原有的 end_time（只有在任务已完成时才保留）
+        // 添加完成时间 - 保留原有的 done（只有在任务已完成时才保留）
         if (checked.toLowerCase() === 'x' && existingEndTime) {
-            attributes.push(`end_time:${existingEndTime}`);
+            attributes.push(`done:${existingEndTime}`);
         }
 
         // 重建 TODO 行
