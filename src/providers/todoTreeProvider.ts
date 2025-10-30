@@ -3,7 +3,7 @@
  */
 
 import * as vscode from 'vscode';
-import { TodoItem, TodoPriority } from '../types';
+import { TodoItem } from '../types';
 import { extractTodosFromDirectory } from '../utils';
 import { getNotesRootPath } from '../config';
 
@@ -23,16 +23,8 @@ export class TodoTreeItem extends vscode.TreeItem {
             // 构建描述信息
             const descriptions: string[] = [];
             
-            if (todoItem.priority !== TodoPriority.NONE) {
-                descriptions.push(`[${todoItem.priority}]`);
-            }
-            
             if (todoItem.due) {
                 descriptions.push(`📅 ${todoItem.due}`);
-            }
-            
-            if (todoItem.project) {
-                descriptions.push(`📁 ${todoItem.project}`);
             }
 
             this.description = descriptions.join(' ');
@@ -45,16 +37,8 @@ export class TodoTreeItem extends vscode.TreeItem {
                 `状态: ${todoItem.completed ? '已完成' : '未完成'}`
             ];
 
-            if (todoItem.priority !== TodoPriority.NONE) {
-                tooltipLines.push(`优先级: ${todoItem.priority}`);
-            }
-
             if (todoItem.due) {
                 tooltipLines.push(`截止日期: ${todoItem.due}`);
-            }
-
-            if (todoItem.project) {
-                tooltipLines.push(`项目: ${todoItem.project}`);
             }
 
             if (todoItem.tags.length > 0) {
@@ -67,17 +51,7 @@ export class TodoTreeItem extends vscode.TreeItem {
             if (todoItem.completed) {
                 this.iconPath = new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green'));
             } else {
-                switch (todoItem.priority) {
-                    case TodoPriority.HIGH:
-                        this.iconPath = new vscode.ThemeIcon('alert', new vscode.ThemeColor('charts.red'));
-                        break;
-                    case TodoPriority.MEDIUM:
-                        this.iconPath = new vscode.ThemeIcon('circle-outline', new vscode.ThemeColor('charts.yellow'));
-                        break;
-                    default:
-                        this.iconPath = new vscode.ThemeIcon('circle-outline', new vscode.ThemeColor('charts.blue'));
-                        break;
-                }
+                this.iconPath = new vscode.ThemeIcon('circle-outline', new vscode.ThemeColor('charts.blue'));
             }
 
             // 设置命令 - 跳转到文件的指定行
@@ -105,7 +79,7 @@ export class TodoTreeProvider implements vscode.TreeDataProvider<TodoTreeItem> {
     readonly onDidChangeTreeData: vscode.Event<TodoTreeItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
     private todos: TodoItem[] = [];
-    private groupBy: 'file' | 'project' | 'priority' | 'status' = 'file';
+    private groupBy: 'file' | 'status' = 'file';
 
     constructor() {
         this.refresh();
@@ -115,7 +89,7 @@ export class TodoTreeProvider implements vscode.TreeDataProvider<TodoTreeItem> {
         this._onDidChangeTreeData.fire();
     }
 
-    setGroupBy(groupBy: 'file' | 'project' | 'priority' | 'status'): void {
+    setGroupBy(groupBy: 'file' | 'status'): void {
         this.groupBy = groupBy;
         this.refresh();
     }
@@ -138,10 +112,6 @@ export class TodoTreeProvider implements vscode.TreeDataProvider<TodoTreeItem> {
             switch (this.groupBy) {
                 case 'file':
                     return this.groupByFile();
-                case 'project':
-                    return this.groupByProject();
-                case 'priority':
-                    return this.groupByPriority();
                 case 'status':
                     return this.groupByStatus();
                 default:
@@ -155,24 +125,6 @@ export class TodoTreeProvider implements vscode.TreeDataProvider<TodoTreeItem> {
             switch (this.groupBy) {
                 case 'file':
                     filteredTodos = this.todos.filter(t => t.fileName === groupLabel);
-                    break;
-                case 'project':
-                    if (groupLabel === '未分类') {
-                        filteredTodos = this.todos.filter(t => !t.project);
-                    } else {
-                        filteredTodos = this.todos.filter(t => t.project === groupLabel);
-                    }
-                    break;
-                case 'priority':
-                    if (groupLabel === '高优先级') {
-                        filteredTodos = this.todos.filter(t => t.priority === TodoPriority.HIGH);
-                    } else if (groupLabel === '中优先级') {
-                        filteredTodos = this.todos.filter(t => t.priority === TodoPriority.MEDIUM);
-                    } else if (groupLabel === '低优先级') {
-                        filteredTodos = this.todos.filter(t => t.priority === TodoPriority.LOW);
-                    } else {
-                        filteredTodos = this.todos.filter(t => t.priority === TodoPriority.NONE);
-                    }
                     break;
                 case 'status':
                     if (groupLabel === '未完成') {
@@ -216,64 +168,6 @@ export class TodoTreeProvider implements vscode.TreeDataProvider<TodoTreeItem> {
         }
 
         return groups.sort((a, b) => (a.label as string).localeCompare(b.label as string));
-    }
-
-    /**
-     * 按项目分组
-     */
-    private groupByProject(): TodoTreeItem[] {
-        const projectMap = new Map<string, TodoItem[]>();
-
-        for (const todo of this.todos) {
-            const project = todo.project || '未分类';
-            if (!projectMap.has(project)) {
-                projectMap.set(project, []);
-            }
-            projectMap.get(project)!.push(todo);
-        }
-
-        const groups: TodoTreeItem[] = [];
-        for (const [project, todos] of projectMap.entries()) {
-            const completedCount = todos.filter(t => t.completed).length;
-            const label = `${project} (${completedCount}/${todos.length})`;
-            groups.push(new TodoTreeItem(
-                project === '未分类' ? label : label,
-                vscode.TreeItemCollapsibleState.Collapsed,
-                undefined,
-                true
-            ));
-        }
-
-        return groups.sort((a, b) => (a.label as string).localeCompare(b.label as string));
-    }
-
-    /**
-     * 按优先级分组
-     */
-    private groupByPriority(): TodoTreeItem[] {
-        const priorityGroups = [
-            { label: '高优先级', priority: TodoPriority.HIGH, icon: '🔴' },
-            { label: '中优先级', priority: TodoPriority.MEDIUM, icon: '🟡' },
-            { label: '低优先级', priority: TodoPriority.LOW, icon: '🔵' },
-            { label: '无优先级', priority: TodoPriority.NONE, icon: '⚪' }
-        ];
-
-        const groups: TodoTreeItem[] = [];
-
-        for (const group of priorityGroups) {
-            const todos = this.todos.filter(t => t.priority === group.priority);
-            if (todos.length > 0) {
-                const completedCount = todos.filter(t => t.completed).length;
-                groups.push(new TodoTreeItem(
-                    `${group.label} (${completedCount}/${todos.length})`,
-                    vscode.TreeItemCollapsibleState.Collapsed,
-                    undefined,
-                    true
-                ));
-            }
-        }
-
-        return groups;
     }
 
     /**

@@ -3,7 +3,7 @@
  */
 
 import * as vscode from 'vscode';
-import { TodoItem, TodoPriority } from '../types';
+import { TodoItem } from '../types';
 import { extractTodosFromDirectory, toggleTodoStatus, updateTodoAttributes } from '../utils';
 import { getNotesRootPath } from '../config';
 
@@ -111,9 +111,7 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
         // 否则显示快速选择菜单（保留旧的对话框方式）
         const action = await vscode.window.showQuickPick([
             { label: '$(tag) 编辑标签', value: 'tags' },
-            { label: '$(project) 编辑项目', value: 'project' },
-            { label: '$(calendar) 设置截止日期', value: 'due' },
-            { label: '$(star) 设置优先级', value: 'priority' }
+            { label: '$(calendar) 设置截止日期', value: 'due' }
         ], {
             placeHolder: `编辑: ${todo.content}`
         });
@@ -136,17 +134,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                 }
                 break;
 
-            case 'project':
-                const projectInput = await vscode.window.showInputBox({
-                    prompt: '输入项目名称',
-                    value: todo.project || '',
-                    placeHolder: '例如: Q4Report'
-                });
-                if (projectInput !== undefined) {
-                    dialogUpdates.project = projectInput.trim();
-                }
-                break;
-
             case 'due':
                 const dueInput = await vscode.window.showInputBox({
                     prompt: '输入截止日期（YYYY-MM-DD）',
@@ -164,21 +151,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                 });
                 if (dueInput !== undefined) {
                     dialogUpdates.due = dueInput.trim();
-                }
-                break;
-
-            case 'priority':
-                const priorityOptions = [
-                    { label: '$(alert) 高优先级 (H)', value: TodoPriority.HIGH },
-                    { label: '$(dash) 中优先级 (M)', value: TodoPriority.MEDIUM },
-                    { label: '$(chevron-down) 低优先级 (L)', value: TodoPriority.LOW },
-                    { label: '$(circle-slash) 无优先级', value: TodoPriority.NONE }
-                ];
-                const priorityChoice = await vscode.window.showQuickPick(priorityOptions, {
-                    placeHolder: '选择优先级'
-                });
-                if (priorityChoice) {
-                    dialogUpdates.priority = priorityChoice.value;
                 }
                 break;
         }
@@ -362,29 +334,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             display: block;
         }
 
-        .priority-high {
-            color: #f44336;
-            font-weight: bold;
-            font-size: 13px;
-        }
-
-        .priority-medium {
-            color: #ff9800;
-            font-weight: 600;
-            font-size: 13px;
-        }
-
-        .priority-low {
-            color: #4caf50;
-            font-size: 13px;
-        }
-
-        .priority-none {
-            color: var(--vscode-foreground);
-            opacity: 0.3;
-            font-size: 12px;
-        }
-
         .tags {
             display: flex;
             gap: 4px;
@@ -459,14 +408,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             min-width: 100px;
         }
 
-        .priority-cell {
-            cursor: pointer;
-        }
-
-        .priority-cell:hover {
-            background: var(--vscode-list-hoverBackground);
-        }
-
         .due-date {
             white-space: nowrap;
             font-size: 11px;
@@ -528,16 +469,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             <option value="pending">未完成</option>
             <option value="completed">已完成</option>
         </select>
-        <select id="filterPriority">
-            <option value="all">全部优先级</option>
-            <option value="H">高</option>
-            <option value="M">中</option>
-            <option value="L">低</option>
-            <option value="none">无</option>
-        </select>
-        <select id="filterProject">
-            <option value="all">全部项目</option>
-        </select>
     </div>
 
     <div class="stats" id="stats"></div>
@@ -547,18 +478,16 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             <thead>
                 <tr>
                     <th style="width: 50px; text-align: center;">状态</th>
-                    <th class="sortable" data-sort="priority" style="width: 60px; text-align: center;" title="点击切换优先级">优先级</th>
-                    <th class="sortable" data-sort="content" style="width: 30%;">内容</th>
-                    <th class="sortable" data-sort="project" style="width: 10%;" title="双击编辑项目">项目</th>
-                    <th class="sortable" data-sort="tags" style="width: 12%;" title="双击编辑标签">标签</th>
-                    <th class="sortable" data-sort="due" style="width: 100px; text-align: center;" title="双击编辑截止日期">截止</th>
-                    <th class="sortable" data-sort="endTime" style="width: 100px; text-align: center;">完成</th>
-                    <th class="sortable" data-sort="file" style="width: 13%;">文件</th>
+                    <th class="sortable" data-sort="content" style="width: 35%;">内容</th>
+                    <th class="sortable" data-sort="tags" style="width: 15%;" title="双击编辑标签">标签</th>
+                    <th class="sortable" data-sort="due" style="width: 120px; text-align: center;" title="双击编辑截止日期">截止</th>
+                    <th class="sortable" data-sort="endTime" style="width: 120px; text-align: center;">完成</th>
+                    <th class="sortable" data-sort="file" style="width: 18%;">文件</th>
                 </tr>
             </thead>
             <tbody id="todoBody">
                 <tr>
-                    <td colspan="8" class="empty-state">
+                    <td colspan="6" class="empty-state">
                         <div class="empty-state-icon">📝</div>
                         <div>加载中...</div>
                     </td>
@@ -579,7 +508,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             switch (message.type) {
                 case 'updateTodos':
                     allTodos = message.todos;
-                    updateProjectFilter();
                     applyFilters();
                     break;
             }
@@ -597,8 +525,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
 
         // 过滤器
         document.getElementById('filterStatus').addEventListener('change', applyFilters);
-        document.getElementById('filterPriority').addEventListener('change', applyFilters);
-        document.getElementById('filterProject').addEventListener('change', applyFilters);
 
         // 表头排序
         document.querySelectorAll('th.sortable').forEach(th => {
@@ -626,16 +552,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             // 如果正在编辑，点击其他地方保存
             if (editingCell && !target.closest('.editing')) {
                 saveEdit();
-            }
-            
-            // 处理优先级单元格点击 - 切换优先级
-            if (target.classList.contains('priority-cell')) {
-                const index = parseInt(target.getAttribute('data-todo-index') || '0');
-                const todo = filteredTodos[index];
-                if (todo) {
-                    cyclePriority(todo);
-                }
-                return;
             }
             
             // 处理内容单元格点击
@@ -683,31 +599,9 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             }
         });
 
-        function updateProjectFilter() {
-            const projects = new Set();
-            allTodos.forEach(todo => {
-                if (todo.project) {
-                    projects.add(todo.project);
-                }
-            });
-
-            const select = document.getElementById('filterProject');
-            const currentValue = select.value;
-            select.innerHTML = '<option value="all">全部项目</option>';
-            Array.from(projects).sort().forEach(project => {
-                const option = document.createElement('option');
-                option.value = project;
-                option.textContent = project;
-                select.appendChild(option);
-            });
-            select.value = currentValue;
-        }
-
         function applyFilters() {
             const search = document.getElementById('searchInput').value.toLowerCase();
             const status = document.getElementById('filterStatus').value;
-            const priority = document.getElementById('filterPriority').value;
-            const project = document.getElementById('filterProject').value;
 
             filteredTodos = allTodos.filter(todo => {
                 // 搜索过滤
@@ -718,15 +612,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                 // 状态过滤
                 if (status === 'pending' && todo.completed) return false;
                 if (status === 'completed' && !todo.completed) return false;
-
-                // 优先级过滤
-                if (priority !== 'all') {
-                    if (priority === 'none' && todo.priority !== '') return false;
-                    if (priority !== 'none' && todo.priority !== priority) return false;
-                }
-
-                // 项目过滤
-                if (project !== 'all' && todo.project !== project) return false;
 
                 return true;
             });
@@ -748,18 +633,9 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                 let aVal, bVal;
 
                 switch (column) {
-                    case 'priority':
-                        const priorityOrder = { 'H': 3, 'M': 2, 'L': 1, '': 0 };
-                        aVal = priorityOrder[a.priority] || 0;
-                        bVal = priorityOrder[b.priority] || 0;
-                        break;
                     case 'content':
                         aVal = a.content.toLowerCase();
                         bVal = b.content.toLowerCase();
-                        break;
-                    case 'project':
-                        aVal = a.project || '';
-                        bVal = b.project || '';
                         break;
                     case 'due':
                         aVal = a.due || '9999-12-31';
@@ -802,7 +678,7 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             if (filteredTodos.length === 0) {
                 tbody.innerHTML = \`
                     <tr>
-                        <td colspan="8" class="empty-state">
+                        <td colspan="6" class="empty-state">
                             <div class="empty-state-icon">📭</div>
                             <div>没有找到 TODO 项</div>
                         </td>
@@ -812,8 +688,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             }
 
             tbody.innerHTML = filteredTodos.map((todo, index) => {
-                const priorityClass = \`priority-\${todo.priority ? todo.priority.toLowerCase() : 'none'}\`;
-                const priorityText = todo.priority ? \`[\${todo.priority}]\` : '-';
                 const dueDateClass = getDueDateClass(todo.due);
                 const indentClass = \`indent-level-\${Math.min(todo.level, 4)}\`;
 
@@ -828,22 +702,11 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                                    data-todo-index="\${index}"
                                    title="\${todo.completed ? '标记为未完成' : '标记为完成'}">
                         </td>
-                        <td class="priority-cell \${priorityClass}" 
-                            data-todo-index="\${index}" 
-                            data-field="priority"
-                            style="text-align: center;"
-                            title="点击切换优先级 (当前: \${priorityText})">\${priorityText}</td>
                         <td class="content-cell \${indentClass}" 
                             data-todo-index="\${index}"
                             title="点击跳转到文件: \${todo.fileName}:\${todo.lineNumber}">
                             \${todo.content}
                         </td>
-                        <td class="editable-cell" 
-                            data-todo-index="\${index}" 
-                            data-field="project"
-                            data-value="\${todo.project || ''}"
-                            style="font-size: 11px;"
-                            title="项目: \${todo.project || '无'} (双击编辑)">\${todo.project || '<span style="opacity: 0.3;">-</span>'}</td>
                         <td class="editable-cell" 
                             data-todo-index="\${index}" 
                             data-field="tags"
@@ -888,13 +751,11 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             const total = filteredTodos.length;
             const completed = filteredTodos.filter(t => t.completed).length;
             const pending = total - completed;
-            const highPriority = filteredTodos.filter(t => t.priority === 'H' && !t.completed).length;
 
             document.getElementById('stats').innerHTML = \`
                 总计: <strong>\${total}</strong> | 
                 未完成: <strong>\${pending}</strong> | 
-                已完成: <strong>\${completed}</strong> | 
-                高优先级: <strong class="priority-high">\${highPriority}</strong>
+                已完成: <strong>\${completed}</strong>
             \`;
         }
 
@@ -908,16 +769,6 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
 
         function editTodo(todo) {
             vscode.postMessage({ type: 'editTodo', todo });
-        }
-
-        // 切换优先级
-        function cyclePriority(todo) {
-            const priorities = ['', 'L', 'M', 'H'];
-            const currentIndex = priorities.indexOf(todo.priority);
-            const nextIndex = (currentIndex + 1) % priorities.length;
-            const newPriority = priorities[nextIndex];
-            
-            updateTodoField(todo, 'priority', newPriority);
         }
 
         // 开始编辑单元格
@@ -1017,12 +868,8 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                 // 将标签字符串转换为数组，移除 # 前缀
                 const tagsStr = value.replace(/#/g, '').trim();
                 updates.tags = tagsStr ? tagsStr.split(/\s+/) : [];
-            } else if (field === 'project') {
-                updates.project = value;
             } else if (field === 'due') {
                 updates.due = value;
-            } else if (field === 'priority') {
-                updates.priority = value;
             }
             
             // 发送更新请求

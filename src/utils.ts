@@ -4,7 +4,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { MdFileInfo, FrontMatter, TodoItem, TodoPriority } from './types';
+import { MdFileInfo, FrontMatter, TodoItem } from './types';
 import { loadMementoConfig } from './config';
 
 /**
@@ -432,33 +432,23 @@ export async function fillFrontMatterDateForAllFiles(dir: string): Promise<void>
 
 /**
  * 解析 TODO 行的属性
- * 支持格式: - [ ] todo content #tag1 #tag2 project:my_project due:2023-01-01 end_time:2023-01-02 priority:H
+ * 支持格式: - [ ] todo content #tag1 #tag2 due:2023-01-01 end_time:2023-01-02
  */
 export function parseTodoAttributes(line: string): {
     content: string;
     tags: string[];
-    project?: string;
     due?: string;
     endTime?: string;
-    priority: TodoPriority;
 } {
     let content = line;
     const tags: string[] = [];
-    let project: string | undefined;
     let due: string | undefined;
     let endTime: string | undefined;
-    let priority: TodoPriority = TodoPriority.NONE;
 
     // 提取标签 #tag
     const tagMatches = content.matchAll(/#([\p{L}\p{N}_\-\/]+)/gu);
     for (const match of tagMatches) {
         tags.push(match[1]);
-    }
-
-    // 提取项目 project:name
-    const projectMatch = content.match(/project:([\p{L}\p{N}_\-\/]+)/u);
-    if (projectMatch) {
-        project = projectMatch[1];
     }
 
     // 提取截止日期 due:YYYY-MM-DD
@@ -473,22 +463,14 @@ export function parseTodoAttributes(line: string): {
         endTime = endTimeMatch[1];
     }
 
-    // 提取优先级 priority:H/M/L
-    const priorityMatch = content.match(/priority:([HML])/);
-    if (priorityMatch) {
-        priority = priorityMatch[1] as TodoPriority;
-    }
-
     // 移除所有属性标记，只保留内容
     content = content
         .replace(/#[\p{L}\p{N}_\-\/]+/gu, '')
-        .replace(/project:[\p{L}\p{N}_\-\/]+/gu, '')
         .replace(/due:\d{4}-\d{2}-\d{2}/g, '')
         .replace(/end_time:\d{4}-\d{2}-\d{2}/g, '')
-        .replace(/priority:[HML]/g, '')
         .trim();
 
-    return { content, tags, project, due, endTime, priority };
+    return { content, tags, due, endTime };
 }
 
 /**
@@ -525,10 +507,8 @@ export async function extractTodosFromFile(filePath: string): Promise<TodoItem[]
                     completed: checked,
                     level,
                     tags: attributes.tags,
-                    project: attributes.project,
                     due: attributes.due,
-                    endTime: attributes.endTime,
-                    priority: attributes.priority
+                    endTime: attributes.endTime
                 });
             }
         }
@@ -617,9 +597,7 @@ export async function updateTodoAttributes(
     todo: TodoItem,
     updates: {
         tags?: string[];
-        project?: string;
         due?: string;
-        priority?: TodoPriority;
     }
 ): Promise<boolean> {
     try {
@@ -649,10 +627,8 @@ export async function updateTodoAttributes(
         // 移除现有的所有属性
         todoContent = todoContent
             .replace(/#[\p{L}\p{N}_\-\/]+/gu, '')
-            .replace(/project:[\p{L}\p{N}_\-\/]+/gu, '')
             .replace(/due:\d{4}-\d{2}-\d{2}/g, '')
             .replace(/end_time:\d{4}-\d{2}-\d{2}/g, '')
-            .replace(/priority:[HML]/g, '')
             .trim();
 
         // 构建新的属性字符串，保留未更新的原有属性
@@ -666,22 +642,10 @@ export async function updateTodoAttributes(
             });
         }
 
-        // 添加项目 - 如果更新中包含 project，使用新值；否则保留原值
-        const finalProject = updates.project !== undefined ? updates.project : todo.project;
-        if (finalProject) {
-            attributes.push(`project:${finalProject}`);
-        }
-
         // 添加截止日期 - 如果更新中包含 due，使用新值；否则保留原值
         const finalDue = updates.due !== undefined ? updates.due : todo.due;
         if (finalDue) {
             attributes.push(`due:${finalDue}`);
-        }
-
-        // 添加优先级 - 如果更新中包含 priority，使用新值；否则保留原值
-        const finalPriority: TodoPriority = updates.priority !== undefined ? updates.priority : todo.priority;
-        if (finalPriority) {
-            attributes.push(`priority:${finalPriority}`);
         }
 
         // 添加完成时间 - 保留原有的 end_time（只有在任务已完成时才保留）

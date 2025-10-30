@@ -45,16 +45,6 @@ export type CalendarItemType = 'daily' | 'weekly' | 'action' | 'command' | 'file
 export type PeriodicNoteType = 'daily' | 'weekly';
 
 /**
- * TODO 项优先级
- */
-export enum TodoPriority {
-    HIGH = 'H',
-    MEDIUM = 'M',
-    LOW = 'L',
-    NONE = ''
-}
-
-/**
  * TODO 项信息
  */
 export interface TodoItem {
@@ -65,10 +55,8 @@ export interface TodoItem {
     completed: boolean;
     level: number;
     tags: string[];
-    project?: string;
     due?: string;
     endTime?: string;  // 完成时间 YYYY-MM-DD
-    priority: TodoPriority;
 }
 
 /**
