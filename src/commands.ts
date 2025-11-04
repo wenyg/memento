@@ -353,6 +353,68 @@ export async function openTodoInFile(todo: TodoItem): Promise<void> {
     }
 }
 
+/**
+ * 置顶笔记
+ */
+export async function pinNote(filePath: string): Promise<void> {
+    try {
+        const notesPath = await getNotesRootPath();
+        if (!notesPath) {
+            vscode.window.showErrorMessage('未找到笔记目录');
+            return;
+        }
+
+        const config = await loadMementoConfig(notesPath);
+        
+        // 检查是否已经置顶
+        if (config.pinnedFiles.includes(filePath)) {
+            vscode.window.showInformationMessage('该笔记已经置顶');
+            return;
+        }
+
+        // 添加到置顶列表
+        config.pinnedFiles.push(filePath);
+        
+        const { saveMementoConfig } = await import('./config.js');
+        await saveMementoConfig(notesPath, config);
+        
+        vscode.window.showInformationMessage('✓ 笔记已置顶');
+    } catch (error) {
+        vscode.window.showErrorMessage(`置顶失败: ${error}`);
+    }
+}
+
+/**
+ * 取消置顶笔记
+ */
+export async function unpinNote(filePath: string): Promise<void> {
+    try {
+        const notesPath = await getNotesRootPath();
+        if (!notesPath) {
+            vscode.window.showErrorMessage('未找到笔记目录');
+            return;
+        }
+
+        const config = await loadMementoConfig(notesPath);
+        
+        // 从置顶列表中移除
+        const index = config.pinnedFiles.indexOf(filePath);
+        if (index === -1) {
+            vscode.window.showInformationMessage('该笔记未置顶');
+            return;
+        }
+
+        config.pinnedFiles.splice(index, 1);
+        
+        const { saveMementoConfig } = await import('./config.js');
+        await saveMementoConfig(notesPath, config);
+        
+        vscode.window.showInformationMessage('✓ 已取消置顶');
+    } catch (error) {
+        vscode.window.showErrorMessage(`取消置顶失败: ${error}`);
+    }
+}
+
 
 /**
  * 注册所有命令
@@ -461,6 +523,22 @@ export function registerCommands(
         }
     });
 
+    // 置顶笔记命令
+    const pinNoteDisposable = vscode.commands.registerCommand('memento.pinNote', async (item: any) => {
+        if (item && item.fileInfo && item.fileInfo.path) {
+            await pinNote(item.fileInfo.path);
+            mainProvider.refresh();
+        }
+    });
+
+    // 取消置顶笔记命令
+    const unpinNoteDisposable = vscode.commands.registerCommand('memento.unpinNote', async (item: any) => {
+        if (item && item.fileInfo && item.fileInfo.path) {
+            await unpinNote(item.fileInfo.path);
+            mainProvider.refresh();
+        }
+    });
+
     // 将所有命令添加到订阅中
     context.subscriptions.push(
         helloWorldDisposable,
@@ -480,6 +558,8 @@ export function registerCommands(
         createNoteDisposable,
         showTodoPanelDisposable,
         refreshTodoDisposable,
-        setTodoFilterDisposable
+        setTodoFilterDisposable,
+        pinNoteDisposable,
+        unpinNoteDisposable
     );
 }

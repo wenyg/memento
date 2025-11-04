@@ -15,7 +15,8 @@ const defaultConfig = {
     weeklyNotesPath: 'weekly',
     weeklyNoteFileNameFormat: '{{year}}-W{{week}}.md',
     weeklyNoteTemplatePath: '',
-    defaultNotePath: '未分类'
+    defaultNotePath: '未分类',
+    pinnedFiles: []
 };
 
 export const DEFAULT_CONFIG: MementoConfig = defaultConfig;
