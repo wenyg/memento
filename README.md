@@ -24,32 +24,32 @@
 
 <table>
 <tr>
-<td width="25%">
+<td width="25%" align="center">
 
 ### 🎯 极简设计
-无需复杂配置，安装即用<br>
-专注于写作，不被工具束缚
+无需复杂配置<br>
+安装即用
 
 </td>
-<td width="25%">
+<td width="25%" align="center">
 
 ### ⚡️ 高效管理  
-智能标签自动分类<br>
-一键创建日报/周报模板
+智能标签分类<br>
+日报周报一键生成
 
 </td>
-<td width="25%">
+<td width="25%" align="center">
 
 ### 📊 可视化展示
-直观的树形视图<br>
-TODO 进度一目了然
+直观树形视图<br>
+TODO 进度清晰
 
 </td>
-<td width="25%">
+<td width="25%" align="center">
 
 ### 🔍 快速访问
-最近笔记优先显示<br>
-标签层级化分类检索
+最近笔记优先<br>
+标签层级检索
 
 </td>
 </tr>

@@ -17,7 +17,9 @@
     "journal",
     "front matter",
     "笔记",
-    "日记"
+    "日记",
+    "todo",
+    "tasks"
   ],
   "engines": {
     "vscode": "^1.85.0"
