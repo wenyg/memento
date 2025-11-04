@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)](./LICENSE)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/wenyg.memento?style=flat-square&label=downloads)](https://marketplace.visualstudio.com/items?itemName=wenyg.memento)
 
-**[🚀 立即安装](#-快速开始)** • **[✨ 功能特性](#-核心功能)** • **[⚙️ 配置](#-配置)** • **[🎯 使用场景](#-使用场景)**
+**[🚀 立即安装](#-快速开始)** • **[✨ 功能特性](#-核心功能)** • **[⚙️ 配置](#️-配置说明)** • **[🎯 使用场景](#-使用场景)**
 
 <p align="center">
   <strong>一款专为 Markdown 用户打造的笔记管理神器</strong><br>
@@ -24,30 +24,28 @@
 
 <table>
 <tr>
-<td width="50%">
+<td width="25%">
 
 ### 🎯 极简设计
 无需复杂配置，安装即用<br>
 专注于写作，不被工具束缚
 
 </td>
-<td width="50%">
+<td width="25%">
 
 ### ⚡️ 高效管理  
 智能标签自动分类<br>
 一键创建日报/周报模板
 
 </td>
-</tr>
-<tr>
-<td width="50%">
+<td width="25%">
 
 ### 📊 可视化展示
 直观的树形视图<br>
 TODO 进度一目了然
 
 </td>
-<td width="50%">
+<td width="25%">
 
 ### 🔍 快速访问
 最近笔记优先显示<br>
@@ -65,14 +63,13 @@ TODO 进度一目了然
 
 <div align="center">
 
-**在 VS Code 中搜索 "Memento" 并点击安装**
+**在 VS Code 插件中搜索 "Memento" 并点击安装**
 
 或者点击下方按钮直接安装 👇
 
 [![安装](https://img.shields.io/badge/Install-VS%20Code%20Marketplace-007ACC.svg?style=for-the-badge&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=wenyg.memento)
 
 </div>
-
 
 ---
 
