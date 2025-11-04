@@ -516,10 +516,10 @@ export function registerCommands(
     });
 
     // 设置 TODO 过滤器
-    const setTodoFilterDisposable = vscode.commands.registerCommand('memento.setTodoFilter', async (filterType: TodoFilterType) => {
+    const setTodoFilterDisposable = vscode.commands.registerCommand('memento.setTodoFilter', async (filterType: TodoFilterType, tagName?: string) => {
         if (todoControlProvider && todoWebviewProvider) {
-            todoControlProvider.setFilter(filterType);
-            todoWebviewProvider.setFilter(filterType);
+            todoControlProvider.setFilter(filterType, tagName);
+            todoWebviewProvider.setFilter(filterType, tagName);
         }
     });
 

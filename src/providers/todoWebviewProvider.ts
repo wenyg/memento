@@ -6,8 +6,9 @@ import * as vscode from 'vscode';
 import { TodoItem } from '../types';
 import { extractTodosFromDirectory, toggleTodoStatus, updateTodoAttributes } from '../utils';
 import { getNotesRootPath } from '../config';
+import { TodoFilterType } from './todoControlProvider';
 
-export type TodoFilterType = 'all' | 'pending' | 'completed' | 'thisWeekCompleted' | 'lastWeekCompleted' | 'thisMonthCompleted' | 'overdue' | 'dueToday' | 'dueThisWeek';
+export { TodoFilterType };
 
 export class TodoWebviewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'mementoTodoView';
@@ -15,6 +16,7 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
     private todos: TodoItem[] = [];
     private currentFilter: TodoFilterType = 'pending';
+    private currentTag: string | null = null;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -71,17 +73,24 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             this._view.webview.postMessage({
                 type: 'updateTodos',
                 todos: this.todos,
-                filter: this.currentFilter
+                filter: this.currentFilter,
+                tag: this.currentTag
             });
         }
     }
 
-    public setFilter(filterType: TodoFilterType) {
+    public setFilter(filterType: TodoFilterType, tagName?: string) {
         this.currentFilter = filterType;
+        if (filterType === 'byTag' && tagName) {
+            this.currentTag = tagName;
+        } else {
+            this.currentTag = null;
+        }
         if (this._view) {
             this._view.webview.postMessage({
                 type: 'setFilter',
-                filter: filterType
+                filter: filterType,
+                tag: this.currentTag
             });
         }
     }
@@ -456,6 +465,7 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
         let filteredTodos = [];
         let currentSort = { column: null, direction: 'asc' };
         let currentFilter = 'pending';
+        let currentTag = null;
 
         // 接收来自扩展的消息
         window.addEventListener('message', event => {
@@ -466,10 +476,16 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                     if (message.filter) {
                         currentFilter = message.filter;
                     }
+                    if (message.tag !== undefined) {
+                        currentTag = message.tag;
+                    }
                     applyFilters();
                     break;
                 case 'setFilter':
                     currentFilter = message.filter;
+                    if (message.tag !== undefined) {
+                        currentTag = message.tag;
+                    }
                     applyFilters();
                     break;
             }
@@ -561,6 +577,13 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
             filteredTodos = allTodos.filter(todo => {
+                // 标签过滤
+                if (currentFilter === 'byTag' && currentTag) {
+                    if (!todo.tags || !todo.tags.includes(currentTag)) {
+                        return false;
+                    }
+                }
+                
                 // 状态过滤
                 switch (currentFilter) {
                     case 'pending':
@@ -590,6 +613,9 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
                     case 'dueThisWeek':
                         if (todo.completed || !todo.due) return false;
                         if (todo.due < getDateString(thisWeekStart) || todo.due > getDateString(thisWeekEnd)) return false;
+                        break;
+                    case 'byTag':
+                        // 标签过滤已在上面处理，这里不额外过滤
                         break;
                     case 'all':
                         // 不过滤
@@ -733,10 +759,15 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             const completed = filteredTodos.filter(t => t.completed).length;
             const pending = total - completed;
 
+            let filterInfo = '';
+            if (currentFilter === 'byTag' && currentTag) {
+                filterInfo = \` | 标签: <strong>#\${currentTag}</strong>\`;
+            }
+
             document.getElementById('stats').innerHTML = \`
                 总计: <strong>\${total}</strong> | 
                 未完成: <strong>\${pending}</strong> | 
-                已完成: <strong>\${completed}</strong>
+                已完成: <strong>\${completed}</strong>\${filterInfo}
             \`;
         }
 

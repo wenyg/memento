@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { TodoItem } from '../types';
 
-export type TodoFilterType = 'all' | 'pending' | 'completed' | 'thisWeekCompleted' | 'lastWeekCompleted' | 'thisMonthCompleted' | 'overdue' | 'dueToday' | 'dueThisWeek';
+export type TodoFilterType = 'all' | 'pending' | 'completed' | 'thisWeekCompleted' | 'lastWeekCompleted' | 'thisMonthCompleted' | 'overdue' | 'dueToday' | 'dueThisWeek' | 'byTag';
 
 /**
  * TODO 控制项
@@ -10,15 +10,16 @@ export class TodoControlItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-        public readonly type: 'category' | 'filter' | 'report',
+        public readonly type: 'category' | 'filter' | 'report' | 'tag',
         public readonly filterType?: TodoFilterType,
         public readonly isActive: boolean = false,
-        public readonly count?: number
+        public readonly count?: number,
+        public readonly tagName?: string
     ) {
         super(label, collapsibleState);
         
-        if (type === 'filter' || type === 'report') {
-            this.contextValue = type === 'filter' ? 'todoFilter' : 'todoReport';
+        if (type === 'filter' || type === 'report' || type === 'tag') {
+            this.contextValue = type === 'filter' ? 'todoFilter' : (type === 'tag' ? 'todoTag' : 'todoReport');
             
             if (type === 'filter') {
                 // 使用复选框图标表示激活状态
@@ -26,6 +27,13 @@ export class TodoControlItem extends vscode.TreeItem {
                     this.iconPath = new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green'));
                 } else {
                     this.iconPath = new vscode.ThemeIcon('circle-outline');
+                }
+            } else if (type === 'tag') {
+                // 标签项使用标签图标
+                if (isActive) {
+                    this.iconPath = new vscode.ThemeIcon('tag', new vscode.ThemeColor('charts.yellow'));
+                } else {
+                    this.iconPath = new vscode.ThemeIcon('tag');
                 }
             } else {
                 // 报告项使用不同的图标
@@ -40,12 +48,14 @@ export class TodoControlItem extends vscode.TreeItem {
             this.command = {
                 command: 'memento.setTodoFilter',
                 title: 'Set TODO Filter',
-                arguments: [filterType]
+                arguments: [filterType, tagName]
             };
         } else {
             this.contextValue = 'todoCategory';
             if (label === '过滤器') {
                 this.iconPath = new vscode.ThemeIcon('filter');
+            } else if (label === '按标签过滤') {
+                this.iconPath = new vscode.ThemeIcon('tag');
             } else {
                 this.iconPath = new vscode.ThemeIcon('graph');
             }
@@ -61,6 +71,7 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
     readonly onDidChangeTreeData: vscode.Event<TodoControlItem | undefined | null | void> = this._onDidChangeTreeData.event;
     
     private currentFilter: TodoFilterType = 'pending';
+    private currentTag: string | null = null;
     private todos: TodoItem[] = [];
     
     constructor() {}
@@ -73,8 +84,17 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
         return this.currentFilter;
     }
     
-    setFilter(filterType: TodoFilterType): void {
+    getCurrentTag(): string | null {
+        return this.currentTag;
+    }
+    
+    setFilter(filterType: TodoFilterType, tagName?: string): void {
         this.currentFilter = filterType;
+        if (filterType === 'byTag' && tagName) {
+            this.currentTag = tagName;
+        } else {
+            this.currentTag = null;
+        }
         this.refresh();
     }
     
@@ -89,11 +109,16 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
     
     async getChildren(element?: TodoControlItem): Promise<TodoControlItem[]> {
         if (!element) {
-            // 根级别 - 显示过滤分类和统计报告
+            // 根级别 - 显示过滤分类、标签过滤和统计报告
             return [
                 new TodoControlItem(
                     '过滤器',
                     vscode.TreeItemCollapsibleState.Expanded,
+                    'category'
+                ),
+                new TodoControlItem(
+                    '按标签过滤',
+                    vscode.TreeItemCollapsibleState.Collapsed,
                     'category'
                 ),
                 new TodoControlItem(
@@ -116,23 +141,70 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
                     vscode.TreeItemCollapsibleState.None,
                     'filter',
                     'pending',
-                    this.currentFilter === 'pending'
+                    this.currentFilter === 'pending' && !this.currentTag
                 ),
                 new TodoControlItem(
                     `全部 (${allCount})`,
                     vscode.TreeItemCollapsibleState.None,
                     'filter',
                     'all',
-                    this.currentFilter === 'all'
+                    this.currentFilter === 'all' && !this.currentTag
                 ),
                 new TodoControlItem(
                     `仅已完成 (${completedCount})`,
                     vscode.TreeItemCollapsibleState.None,
                     'filter',
                     'completed',
-                    this.currentFilter === 'completed'
+                    this.currentFilter === 'completed' && !this.currentTag
                 )
             ];
+        }
+        
+        if (element.label === '按标签过滤') {
+            // 提取所有标签并统计
+            const tagCounts = new Map<string, number>();
+            
+            for (const todo of this.todos) {
+                if (todo.tags && todo.tags.length > 0) {
+                    for (const tag of todo.tags) {
+                        tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+                    }
+                }
+            }
+            
+            // 按标签名称排序
+            const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => {
+                // 先按数量降序，再按名称升序
+                if (b[1] !== a[1]) {
+                    return b[1] - a[1];
+                }
+                return a[0].localeCompare(b[0]);
+            });
+            
+            if (sortedTags.length === 0) {
+                return [
+                    new TodoControlItem(
+                        '(暂无标签)',
+                        vscode.TreeItemCollapsibleState.None,
+                        'tag',
+                        undefined,
+                        false,
+                        0
+                    )
+                ];
+            }
+            
+            return sortedTags.map(([tag, count]) => 
+                new TodoControlItem(
+                    `#${tag} (${count})`,
+                    vscode.TreeItemCollapsibleState.None,
+                    'tag',
+                    'byTag',
+                    this.currentFilter === 'byTag' && this.currentTag === tag,
+                    count,
+                    tag
+                )
+            );
         }
         
         if (element.label === '统计报告') {
