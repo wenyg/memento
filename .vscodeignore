@@ -28,6 +28,8 @@ eslint.config.mjs
 node_modules/**
 .git/**
 .github/**
+.history/**
+.cursor/**
 
 # 打包文件
 *.vsix
