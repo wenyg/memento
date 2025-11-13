@@ -354,6 +354,24 @@ export async function openTodoInFile(todo: TodoItem): Promise<void> {
 }
 
 /**
+ * 编辑文章（打开文件进行编辑）
+ */
+export async function editNote(item: any): Promise<void> {
+    try {
+        if (!item || !item.fileInfo || !item.fileInfo.path) {
+            vscode.window.showErrorMessage('无法获取文件信息');
+            return;
+        }
+
+        const filePath = item.fileInfo.path;
+        const document = await vscode.workspace.openTextDocument(filePath);
+        await vscode.window.showTextDocument(document);
+    } catch (error) {
+        vscode.window.showErrorMessage(`无法打开文件进行编辑: ${error}`);
+    }
+}
+
+/**
  * 置顶笔记
  */
 export async function pinNote(filePath: string): Promise<void> {
@@ -539,6 +557,11 @@ export function registerCommands(
         }
     });
 
+    // 编辑笔记命令
+    const editNoteDisposable = vscode.commands.registerCommand('memento.editNote', async (item: any) => {
+        await editNote(item);
+    });
+
     // 将所有命令添加到订阅中
     context.subscriptions.push(
         helloWorldDisposable,
@@ -560,6 +583,7 @@ export function registerCommands(
         refreshTodoDisposable,
         setTodoFilterDisposable,
         pinNoteDisposable,
-        unpinNoteDisposable
+        unpinNoteDisposable,
+        editNoteDisposable
     );
 }

@@ -40,8 +40,7 @@ export class MdFileItem extends vscode.TreeItem {
             this.contextValue = 'createNoteAction';
             this.iconPath = new vscode.ThemeIcon('new-file', new vscode.ThemeColor('charts.green'));
         } else if (fileInfo) {
-            this.tooltip = `${fileInfo.relativePath}\nCreated: ${fileInfo.birthtime.toLocaleString()}${isPinned ? '\n📌 已置顶' : ''}`;
-            this.description = isPinned ? '📌 ' + fileInfo.birthtime.toLocaleDateString() : fileInfo.birthtime.toLocaleDateString();
+            this.tooltip = `${fileInfo.relativePath}\nCreated: ${fileInfo.birthtime.toLocaleString()}${isPinned ? '\n📌 已置顶' : ''}\n点击: 预览 | 编辑按钮: 编辑`;
             this.resourceUri = vscode.Uri.file(fileInfo.path);
             this.command = {
                 command: 'markdown.showPreview',
@@ -68,8 +67,7 @@ export class TagItem extends vscode.TreeItem {
         );
 
         if (isFile && fileInfo) {
-            this.tooltip = `${fileInfo.relativePath}\nCreated: ${fileInfo.birthtime.toLocaleString()}`;
-            this.description = fileInfo.birthtime.toLocaleDateString();
+            this.tooltip = `${fileInfo.relativePath}\nCreated: ${fileInfo.birthtime.toLocaleString()}\n点击: 预览 | 编辑按钮: 编辑`;
             this.resourceUri = vscode.Uri.file(fileInfo.path);
             this.command = {
                 command: 'markdown.showPreview',

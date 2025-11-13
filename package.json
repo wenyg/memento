@@ -9,17 +9,19 @@
     "url": "https://github.com/wenyg/memento"
   },
   "keywords": [
+    "obsidian",
     "markdown",
     "notes",
     "notebook",
     "tags",
     "daily notes",
     "journal",
-    "front matter",
+    "todo",
+    "tasks",
     "笔记",
     "日记",
-    "todo",
-    "tasks"
+    "日报",
+    "周报"
   ],
   "engines": {
     "vscode": "^1.85.0"
@@ -127,6 +129,11 @@
         "command": "memento.unpinNote",
         "title": "取消置顶",
         "icon": "$(pinned)"
+      },
+      {
+        "command": "memento.editNote",
+        "title": "编辑文章",
+        "icon": "$(edit)"
       }
     ],
     "viewsContainers": {
@@ -198,24 +205,44 @@
       ],
       "view/item/context": [
         {
-          "command": "memento.pinNote",
+          "command": "memento.editNote",
           "when": "view == mementoMainView && viewItem == mdFile",
           "group": "inline@1"
         },
         {
-          "command": "memento.unpinNote",
+          "command": "memento.editNote",
           "when": "view == mementoMainView && viewItem == mdFilePinned",
           "group": "inline@1"
         },
         {
           "command": "memento.pinNote",
           "when": "view == mementoMainView && viewItem == mdFile",
-          "group": "1_note@1"
+          "group": "inline@2"
         },
         {
           "command": "memento.unpinNote",
           "when": "view == mementoMainView && viewItem == mdFilePinned",
+          "group": "inline@2"
+        },
+        {
+          "command": "memento.editNote",
+          "when": "view == mementoMainView && viewItem == mdFile",
           "group": "1_note@1"
+        },
+        {
+          "command": "memento.editNote",
+          "when": "view == mementoMainView && viewItem == mdFilePinned",
+          "group": "1_note@1"
+        },
+        {
+          "command": "memento.pinNote",
+          "when": "view == mementoMainView && viewItem == mdFile",
+          "group": "1_note@2"
+        },
+        {
+          "command": "memento.unpinNote",
+          "when": "view == mementoMainView && viewItem == mdFilePinned",
+          "group": "1_note@2"
         }
       ]
     },
