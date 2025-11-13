@@ -105,7 +105,9 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
     }
     
     refresh(): void {
-        this._onDidChangeTreeData.fire();
+        this._loadConfig().then(() => {
+            this._onDidChangeTreeData.fire();
+        });
     }
     
     getCurrentFilter(): TodoFilterType {
@@ -146,7 +148,7 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
                 ),
                 new TodoControlItem(
                     '按标签过滤',
-                    vscode.TreeItemCollapsibleState.Collapsed,
+                    vscode.TreeItemCollapsibleState.Expanded,
                     'category'
                 ),
                 new TodoControlItem(
