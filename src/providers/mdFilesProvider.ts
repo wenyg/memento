@@ -33,6 +33,11 @@ export class MdFilesProvider implements vscode.TreeDataProvider<MdFileItem> {
 
     getChildren(element?: MdFileItem): Thenable<MdFileItem[]> {
         if (!element) {
+            // 如果没有文件，返回空数组以显示 viewsWelcome
+            if (this.mdFiles.length === 0) {
+                return Promise.resolve([]);
+            }
+            
             // 根级别 - 首先显示"新建笔记"操作，然后是所有 markdown 文件
             const createNoteItem = new MdFileItem(
                 null,

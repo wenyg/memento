@@ -189,7 +189,13 @@
         }
       ]
     },
-    "viewsWelcome": [],
+    "viewsWelcome": [
+      {
+        "view": "mementoMainView",
+        "contents": "欢迎使用 Memento！\n\n快速开始：\n\n[📝 创建第一个笔记](command:memento.createNote)\n[⚙️ 设置笔记根目录](command:workbench.action.openSettings?%5B%22memento.notesPath%22%5D)\n\n功能提示：\n• 点击上方按钮创建你的第一个笔记\n• 在设置中配置笔记根目录（默认使用当前工作区）\n• 使用标签（如 #tag）组织你的笔记\n• 点击顶部图标切换不同视图：最近笔记、标签分类、日历、TODO",
+        "when": "workspaceFolderCount > 0"
+      }
+    ],
     "menus": {
       "view/title": [
         {

@@ -57,6 +57,9 @@ export function activate(context: vscode.ExtensionContext) {
     // 设置文件系统监听器以自动刷新
     setupFileWatcher(context, mainProvider, todoWebviewProvider, todoControlProvider);
     console.log('File watcher setup completed');
+
+    // 检查是否是首次使用并显示欢迎信息
+    checkFirstTimeUse(context);
 }
 
 /**
@@ -117,6 +120,76 @@ async function refreshTodoViews(todoWebviewProvider: TodoWebviewProvider, todoCo
         }
     }
     todoWebviewProvider.refresh();
+}
+
+/**
+ * 检查是否是首次使用并显示欢迎信息
+ */
+async function checkFirstTimeUse(context: vscode.ExtensionContext): Promise<void> {
+    try {
+        // 检查是否已经显示过欢迎信息
+        const hasShownWelcome = context.globalState.get<boolean>('memento.hasShownWelcome', false);
+        
+        if (hasShownWelcome) {
+            return;
+        }
+
+        const notesPath = await getNotesRootPath();
+        if (!notesPath) {
+            // 没有工作区，稍后检查
+            return;
+        }
+
+        // 检查是否有 Markdown 文件
+        const fs = await import('fs');
+        const path = await import('path');
+        
+        async function hasMarkdownFiles(dir: string): Promise<boolean> {
+            try {
+                const items = await fs.promises.readdir(dir, { withFileTypes: true });
+                for (const item of items) {
+                    if (item.isDirectory() && !item.name.startsWith('.') && item.name !== 'node_modules') {
+                        if (await hasMarkdownFiles(path.join(dir, item.name))) {
+                            return true;
+                        }
+                    } else if (item.isFile() && item.name.endsWith('.md')) {
+                        return true;
+                    }
+                }
+            } catch (error) {
+                // 忽略错误
+            }
+            return false;
+        }
+
+        const hasFiles = await hasMarkdownFiles(notesPath);
+        
+        // 如果没有文件，显示欢迎信息
+        if (!hasFiles) {
+            const action = await vscode.window.showInformationMessage(
+                '欢迎使用 Memento！这是一个轻量级的 Markdown 笔记管理插件。',
+                '📝 创建第一个笔记',
+                '⚙️ 设置笔记根目录',
+                '📖 查看文档'
+            );
+
+            if (action === '📝 创建第一个笔记') {
+                await vscode.commands.executeCommand('memento.createNote');
+            } else if (action === '⚙️ 设置笔记根目录') {
+                await vscode.commands.executeCommand('workbench.action.openSettings', 'memento.notesPath');
+            } else if (action === '📖 查看文档') {
+                await vscode.env.openExternal(vscode.Uri.parse('https://github.com/wenyg/memento#readme'));
+            }
+
+            // 标记已显示欢迎信息
+            await context.globalState.update('memento.hasShownWelcome', true);
+        } else {
+            // 有文件，也标记已显示，避免再次显示
+            await context.globalState.update('memento.hasShownWelcome', true);
+        }
+    } catch (error) {
+        console.error('Error checking first time use:', error);
+    }
 }
 
 /**
