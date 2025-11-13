@@ -4,7 +4,7 @@
 
 import * as vscode from 'vscode';
 import { MdFileInfo, TagInfo } from '../types';
-import { getNotesRootPath } from '../config';
+import { getNotesRootPath, loadMementoConfig } from '../config';
 import { findMarkdownFilesWithTags } from '../utils';
 import { TagItem } from './base';
 
@@ -14,6 +14,7 @@ export class TagTreeProvider implements vscode.TreeDataProvider<TagItem> {
 
     private tagTree: TagInfo[] = [];
     private mdFiles: MdFileInfo[] = [];
+    private pinnedTags: Set<string> = new Set();
 
     constructor() {
         this.refresh();
@@ -21,7 +22,9 @@ export class TagTreeProvider implements vscode.TreeDataProvider<TagItem> {
 
     refresh(): void {
         console.log('TagTreeProvider: Refreshing tree data');
-        this._loadMarkdownFiles().then(() => {
+        this._loadConfig().then(() => {
+            return this._loadMarkdownFiles();
+        }).then(() => {
             this.buildTagTree();
             this._onDidChangeTreeData.fire();
         });
@@ -33,29 +36,59 @@ export class TagTreeProvider implements vscode.TreeDataProvider<TagItem> {
 
     getChildren(element?: TagItem): Thenable<TagItem[]> {
         if (!element) {
-            // 根级别 - 返回标签层次结构
-            return Promise.resolve(
-                this.tagTree.map(tagInfo => {
-                    const hasChildren = (tagInfo.children && tagInfo.children.length > 0) || tagInfo.files.length > 0;
-                    return new TagItem(
-                        tagInfo,
-                        hasChildren ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None
-                    );
-                })
-            );
+            // 根级别 - 返回标签层次结构，置顶标签在前
+            const items = this.tagTree.map(tagInfo => {
+                const hasChildren = (tagInfo.children && tagInfo.children.length > 0) || tagInfo.files.length > 0;
+                const fullTagPath = this.getFullTagPath(tagInfo);
+                const isPinned = this.pinnedTags.has(fullTagPath);
+                return new TagItem(
+                    tagInfo,
+                    hasChildren ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+                    false,
+                    undefined,
+                    isPinned,
+                    fullTagPath
+                );
+            });
+            
+            // 排序：置顶标签在前，然后按字母顺序
+            items.sort((a, b) => {
+                if (a.isPinned !== b.isPinned) {
+                    return a.isPinned ? -1 : 1;
+                }
+                return a.tagInfo.tag.localeCompare(b.tagInfo.tag);
+            });
+            
+            return Promise.resolve(items);
         } else if (!element.isFile) {
             // 标签级别 - 返回子标签和文件
             const items: TagItem[] = [];
 
             // 首先添加子标签
             if (element.tagInfo.children) {
-                items.push(...element.tagInfo.children.map(childTagInfo => {
+                const childItems = element.tagInfo.children.map(childTagInfo => {
                     const hasChildren = (childTagInfo.children && childTagInfo.children.length > 0) || childTagInfo.files.length > 0;
+                    const fullTagPath = this.getFullTagPath(childTagInfo, element.tagInfo.tag);
+                    const isPinned = this.pinnedTags.has(fullTagPath);
                     return new TagItem(
                         childTagInfo,
-                        hasChildren ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None
+                        hasChildren ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+                        false,
+                        undefined,
+                        isPinned,
+                        fullTagPath
                     );
-                }));
+                });
+                
+                // 排序：置顶标签在前
+                childItems.sort((a, b) => {
+                    if (a.isPinned !== b.isPinned) {
+                        return a.isPinned ? -1 : 1;
+                    }
+                    return a.tagInfo.tag.localeCompare(b.tagInfo.tag);
+                });
+                
+                items.push(...childItems);
             }
 
             // 添加文件
@@ -72,6 +105,26 @@ export class TagTreeProvider implements vscode.TreeDataProvider<TagItem> {
         }
 
         return Promise.resolve([]);
+    }
+    
+    private getFullTagPath(tagInfo: TagInfo, parentPath: string = ''): string {
+        const currentPath = parentPath ? `${parentPath}/${tagInfo.tag}` : tagInfo.tag;
+        return currentPath;
+    }
+    
+    private async _loadConfig(): Promise<void> {
+        try {
+            const rootPath = await getNotesRootPath();
+            if (!rootPath) {
+                this.pinnedTags = new Set();
+                return;
+            }
+            const config = await loadMementoConfig(rootPath);
+            this.pinnedTags = new Set(config.pinnedTags);
+        } catch (error) {
+            console.error('TagTreeProvider: Error loading config:', error);
+            this.pinnedTags = new Set();
+        }
     }
 
     private async _loadMarkdownFiles(): Promise<void> {

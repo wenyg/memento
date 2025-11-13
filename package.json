@@ -134,6 +134,26 @@
         "command": "memento.editNote",
         "title": "编辑文章",
         "icon": "$(edit)"
+      },
+      {
+        "command": "memento.pinTag",
+        "title": "📌 置顶标签",
+        "icon": "$(pin)"
+      },
+      {
+        "command": "memento.unpinTag",
+        "title": "取消置顶",
+        "icon": "$(pinned)"
+      },
+      {
+        "command": "memento.pinTodoTag",
+        "title": "📌 置顶标签",
+        "icon": "$(pin)"
+      },
+      {
+        "command": "memento.unpinTodoTag",
+        "title": "取消置顶",
+        "icon": "$(pinned)"
       }
     ],
     "viewsContainers": {
@@ -248,6 +268,46 @@
           "command": "memento.unpinNote",
           "when": "view == mementoMainView && viewItem == mdFilePinned",
           "group": "1_note@2"
+        },
+        {
+          "command": "memento.pinTag",
+          "when": "view == mementoMainView && viewItem == tag",
+          "group": "inline@1"
+        },
+        {
+          "command": "memento.unpinTag",
+          "when": "view == mementoMainView && viewItem == tagPinned",
+          "group": "inline@1"
+        },
+        {
+          "command": "memento.pinTag",
+          "when": "view == mementoMainView && viewItem == tag",
+          "group": "1_tag@1"
+        },
+        {
+          "command": "memento.unpinTag",
+          "when": "view == mementoMainView && viewItem == tagPinned",
+          "group": "1_tag@1"
+        },
+        {
+          "command": "memento.pinTodoTag",
+          "when": "view == mementoMainView && viewItem == todoTag",
+          "group": "inline@1"
+        },
+        {
+          "command": "memento.unpinTodoTag",
+          "when": "view == mementoMainView && viewItem == todoTagPinned",
+          "group": "inline@1"
+        },
+        {
+          "command": "memento.pinTodoTag",
+          "when": "view == mementoMainView && viewItem == todoTag",
+          "group": "1_todoTag@1"
+        },
+        {
+          "command": "memento.unpinTodoTag",
+          "when": "view == mementoMainView && viewItem == todoTagPinned",
+          "group": "1_todoTag@1"
         }
       ]
     },

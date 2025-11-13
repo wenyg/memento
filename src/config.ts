@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { MementoConfig } from './types';
 
-const defaultConfig = {
+const defaultConfig: MementoConfig = {
     excludeFolders: ['node_modules', '.git'],
     dailyNotesPath: 'daily',
     dailyNoteFileNameFormat: '{{year}}-{{month}}-{{day}}.md',
@@ -16,7 +16,9 @@ const defaultConfig = {
     weeklyNoteFileNameFormat: '{{year}}-W{{week}}.md',
     weeklyNoteTemplatePath: '',
     defaultNotePath: '未分类',
-    pinnedFiles: []
+    pinnedFiles: [],
+    pinnedTags: [],
+    pinnedTodoTags: []
 };
 
 export const DEFAULT_CONFIG: MementoConfig = defaultConfig;

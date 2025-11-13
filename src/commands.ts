@@ -433,6 +433,130 @@ export async function unpinNote(filePath: string): Promise<void> {
     }
 }
 
+/**
+ * 置顶标签
+ */
+export async function pinTag(tagPath: string): Promise<void> {
+    try {
+        const notesPath = await getNotesRootPath();
+        if (!notesPath) {
+            vscode.window.showErrorMessage('未找到笔记目录');
+            return;
+        }
+
+        const config = await loadMementoConfig(notesPath);
+        
+        // 检查是否已经置顶
+        if (config.pinnedTags.includes(tagPath)) {
+            vscode.window.showInformationMessage('该标签已经置顶');
+            return;
+        }
+
+        // 添加到置顶列表
+        config.pinnedTags.push(tagPath);
+        
+        const { saveMementoConfig } = await import('./config.js');
+        await saveMementoConfig(notesPath, config);
+        
+        vscode.window.showInformationMessage('✓ 标签已置顶');
+    } catch (error) {
+        vscode.window.showErrorMessage(`置顶失败: ${error}`);
+    }
+}
+
+/**
+ * 取消置顶标签
+ */
+export async function unpinTag(tagPath: string): Promise<void> {
+    try {
+        const notesPath = await getNotesRootPath();
+        if (!notesPath) {
+            vscode.window.showErrorMessage('未找到笔记目录');
+            return;
+        }
+
+        const config = await loadMementoConfig(notesPath);
+        
+        // 从置顶列表中移除
+        const index = config.pinnedTags.indexOf(tagPath);
+        if (index === -1) {
+            vscode.window.showInformationMessage('该标签未置顶');
+            return;
+        }
+
+        config.pinnedTags.splice(index, 1);
+        
+        const { saveMementoConfig } = await import('./config.js');
+        await saveMementoConfig(notesPath, config);
+        
+        vscode.window.showInformationMessage('✓ 已取消置顶');
+    } catch (error) {
+        vscode.window.showErrorMessage(`取消置顶失败: ${error}`);
+    }
+}
+
+/**
+ * 置顶 TODO 标签
+ */
+export async function pinTodoTag(tagName: string): Promise<void> {
+    try {
+        const notesPath = await getNotesRootPath();
+        if (!notesPath) {
+            vscode.window.showErrorMessage('未找到笔记目录');
+            return;
+        }
+
+        const config = await loadMementoConfig(notesPath);
+        
+        // 检查是否已经置顶
+        if (config.pinnedTodoTags.includes(tagName)) {
+            vscode.window.showInformationMessage('该标签已经置顶');
+            return;
+        }
+
+        // 添加到置顶列表
+        config.pinnedTodoTags.push(tagName);
+        
+        const { saveMementoConfig } = await import('./config.js');
+        await saveMementoConfig(notesPath, config);
+        
+        vscode.window.showInformationMessage('✓ 标签已置顶');
+    } catch (error) {
+        vscode.window.showErrorMessage(`置顶失败: ${error}`);
+    }
+}
+
+/**
+ * 取消置顶 TODO 标签
+ */
+export async function unpinTodoTag(tagName: string): Promise<void> {
+    try {
+        const notesPath = await getNotesRootPath();
+        if (!notesPath) {
+            vscode.window.showErrorMessage('未找到笔记目录');
+            return;
+        }
+
+        const config = await loadMementoConfig(notesPath);
+        
+        // 从置顶列表中移除
+        const index = config.pinnedTodoTags.indexOf(tagName);
+        if (index === -1) {
+            vscode.window.showInformationMessage('该标签未置顶');
+            return;
+        }
+
+        config.pinnedTodoTags.splice(index, 1);
+        
+        const { saveMementoConfig } = await import('./config.js');
+        await saveMementoConfig(notesPath, config);
+        
+        vscode.window.showInformationMessage('✓ 已取消置顶');
+    } catch (error) {
+        vscode.window.showErrorMessage(`取消置顶失败: ${error}`);
+    }
+}
+
 
 /**
  * 注册所有命令
@@ -562,6 +686,42 @@ export function registerCommands(
         await editNote(item);
     });
 
+    // 置顶标签命令
+    const pinTagDisposable = vscode.commands.registerCommand('memento.pinTag', async (item: any) => {
+        if (item && item.fullTagPath) {
+            await pinTag(item.fullTagPath);
+            mainProvider.refresh();
+        }
+    });
+
+    // 取消置顶标签命令
+    const unpinTagDisposable = vscode.commands.registerCommand('memento.unpinTag', async (item: any) => {
+        if (item && item.fullTagPath) {
+            await unpinTag(item.fullTagPath);
+            mainProvider.refresh();
+        }
+    });
+
+    // 置顶 TODO 标签命令
+    const pinTodoTagDisposable = vscode.commands.registerCommand('memento.pinTodoTag', async (item: any) => {
+        if (item && item.tagName) {
+            await pinTodoTag(item.tagName);
+            if (todoControlProvider) {
+                todoControlProvider.refresh();
+            }
+        }
+    });
+
+    // 取消置顶 TODO 标签命令
+    const unpinTodoTagDisposable = vscode.commands.registerCommand('memento.unpinTodoTag', async (item: any) => {
+        if (item && item.tagName) {
+            await unpinTodoTag(item.tagName);
+            if (todoControlProvider) {
+                todoControlProvider.refresh();
+            }
+        }
+    });
+
     // 将所有命令添加到订阅中
     context.subscriptions.push(
         helloWorldDisposable,
@@ -584,6 +744,10 @@ export function registerCommands(
         setTodoFilterDisposable,
         pinNoteDisposable,
         unpinNoteDisposable,
-        editNoteDisposable
+        editNoteDisposable,
+        pinTagDisposable,
+        unpinTagDisposable,
+        pinTodoTagDisposable,
+        unpinTodoTagDisposable
     );
 }

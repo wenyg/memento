@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { TodoItem } from '../types';
+import { getNotesRootPath, loadMementoConfig } from '../config';
 
 export type TodoFilterType = 'all' | 'pending' | 'completed' | 'thisWeekCompleted' | 'lastWeekCompleted' | 'thisMonthCompleted' | 'overdue' | 'dueToday' | 'dueThisWeek' | 'byTag';
 
@@ -7,6 +8,8 @@ export type TodoFilterType = 'all' | 'pending' | 'completed' | 'thisWeekComplete
  * TODO 控制项
  */
 export class TodoControlItem extends vscode.TreeItem {
+    public readonly isPinned: boolean;
+
     constructor(
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
@@ -14,12 +17,16 @@ export class TodoControlItem extends vscode.TreeItem {
         public readonly filterType?: TodoFilterType,
         public readonly isActive: boolean = false,
         public readonly count?: number,
-        public readonly tagName?: string
+        public readonly tagName?: string,
+        isPinned: boolean = false
     ) {
         super(label, collapsibleState);
         
+        this.isPinned = isPinned;
+        
         if (type === 'filter' || type === 'report' || type === 'tag') {
-            this.contextValue = type === 'filter' ? 'todoFilter' : (type === 'tag' ? 'todoTag' : 'todoReport');
+            const baseContextValue = type === 'filter' ? 'todoFilter' : (type === 'tag' ? 'todoTag' : 'todoReport');
+            this.contextValue = isPinned && type === 'tag' ? 'todoTagPinned' : baseContextValue;
             
             if (type === 'filter') {
                 // 使用复选框图标表示激活状态
@@ -34,6 +41,9 @@ export class TodoControlItem extends vscode.TreeItem {
                     this.iconPath = new vscode.ThemeIcon('tag', new vscode.ThemeColor('charts.yellow'));
                 } else {
                     this.iconPath = new vscode.ThemeIcon('tag');
+                }
+                if (isPinned) {
+                    this.description = this.description ? `📌 ${this.description}` : '📌';
                 }
             } else {
                 // 报告项使用不同的图标
@@ -73,8 +83,26 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
     private currentFilter: TodoFilterType = 'pending';
     private currentTag: string | null = null;
     private todos: TodoItem[] = [];
+    private pinnedTodoTags: Set<string> = new Set();
     
-    constructor() {}
+    constructor() {
+        this._loadConfig();
+    }
+    
+    private async _loadConfig(): Promise<void> {
+        try {
+            const rootPath = await getNotesRootPath();
+            if (!rootPath) {
+                this.pinnedTodoTags = new Set();
+                return;
+            }
+            const config = await loadMementoConfig(rootPath);
+            this.pinnedTodoTags = new Set(config.pinnedTodoTags);
+        } catch (error) {
+            console.error('TodoControlProvider: Error loading config:', error);
+            this.pinnedTodoTags = new Set();
+        }
+    }
     
     refresh(): void {
         this._onDidChangeTreeData.fire();
@@ -172,8 +200,16 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
                 }
             }
             
-            // 按标签名称排序
+            // 按标签名称排序，置顶标签在前
             const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => {
+                const aPinned = this.pinnedTodoTags.has(a[0]);
+                const bPinned = this.pinnedTodoTags.has(b[0]);
+                
+                // 置顶标签在前
+                if (aPinned !== bPinned) {
+                    return aPinned ? -1 : 1;
+                }
+                
                 // 先按数量降序，再按名称升序
                 if (b[1] !== a[1]) {
                     return b[1] - a[1];
@@ -194,17 +230,19 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
                 ];
             }
             
-            return sortedTags.map(([tag, count]) => 
-                new TodoControlItem(
+            return sortedTags.map(([tag, count]) => {
+                const isPinned = this.pinnedTodoTags.has(tag);
+                return new TodoControlItem(
                     `#${tag} (${count})`,
                     vscode.TreeItemCollapsibleState.None,
                     'tag',
                     'byTag',
                     this.currentFilter === 'byTag' && this.currentTag === tag,
                     count,
-                    tag
-                )
-            );
+                    tag,
+                    isPinned
+                );
+            });
         }
         
         if (element.label === '统计报告') {

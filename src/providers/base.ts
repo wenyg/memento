@@ -41,6 +41,9 @@ export class MdFileItem extends vscode.TreeItem {
             this.iconPath = new vscode.ThemeIcon('new-file', new vscode.ThemeColor('charts.green'));
         } else if (fileInfo) {
             this.tooltip = `${fileInfo.relativePath}\nCreated: ${fileInfo.birthtime.toLocaleString()}${isPinned ? '\n📌 已置顶' : ''}\n点击: 预览 | 编辑按钮: 编辑`;
+            if (isPinned) {
+                this.description = '📌';
+            }
             this.resourceUri = vscode.Uri.file(fileInfo.path);
             this.command = {
                 command: 'markdown.showPreview',
@@ -54,17 +57,25 @@ export class MdFileItem extends vscode.TreeItem {
 }
 
 export class TagItem extends vscode.TreeItem {
+    public readonly isPinned: boolean;
+    public readonly fullTagPath: string;
+
     constructor(
         public readonly tagInfo: TagInfo,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public readonly isFile: boolean = false,
-        public readonly fileInfo?: MdFileInfo
+        public readonly fileInfo?: MdFileInfo,
+        isPinned: boolean = false,
+        fullTagPath?: string
     ) {
         // 调用父类构造函数
         super(
             isFile && fileInfo ? fileInfo.displayTitle : tagInfo.tag,
             collapsibleState
         );
+
+        this.isPinned = isPinned;
+        this.fullTagPath = fullTagPath || tagInfo.tag;
 
         if (isFile && fileInfo) {
             this.tooltip = `${fileInfo.relativePath}\nCreated: ${fileInfo.birthtime.toLocaleString()}\n点击: 预览 | 编辑按钮: 编辑`;
@@ -77,9 +88,9 @@ export class TagItem extends vscode.TreeItem {
             this.contextValue = 'mdFile';
             this.iconPath = new vscode.ThemeIcon('markdown');
         } else {
-            this.tooltip = `Tag: ${tagInfo.tag} (${tagInfo.files.length} files)`;
-            this.description = `${tagInfo.files.length} files`;
-            this.contextValue = 'tag';
+            this.tooltip = `Tag: ${tagInfo.tag} (${tagInfo.files.length} files)${isPinned ? '\n📌 已置顶' : ''}`;
+            this.description = isPinned ? `📌 ${tagInfo.files.length} files` : `${tagInfo.files.length} files`;
+            this.contextValue = isPinned ? 'tagPinned' : 'tag';
             this.iconPath = new vscode.ThemeIcon('tag');
         }
     }
