@@ -91,18 +91,18 @@ export class CalendarItem extends vscode.TreeItem {
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public readonly itemType: CalendarItemType,
         public readonly action?: () => void,
-        public readonly filePath?: string
+        public readonly filePath?: string,
+        public readonly description?: string
     ) {
         super(label, collapsibleState);
 
+        if (description) {
+            this.description = description;
+        }
+
         if (itemType === 'action') {
             this.contextValue = 'calendarAction';
-            this.iconPath = new vscode.ThemeIcon('edit');
-            this.command = {
-                command: 'memento.executeSettingAction',
-                title: 'Edit',
-                arguments: [this]
-            };
+            // 移除默认的 edit 图标，改为在 description 中显示编辑图标
         } else if (itemType === 'command') {
             this.contextValue = 'calendarCommand';
             this.iconPath = new vscode.ThemeIcon('play');

@@ -215,6 +215,11 @@
           "group": "inline@1"
         },
         {
+          "command": "memento.executeSettingAction",
+          "when": "view == mementoMainView && viewItem == calendarAction",
+          "group": "inline@1"
+        },
+        {
           "command": "memento.pinNote",
           "when": "view == mementoMainView && viewItem == mdFile",
           "group": "inline@2"

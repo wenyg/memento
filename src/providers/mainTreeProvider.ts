@@ -140,26 +140,14 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
 
             return [
                 new CalendarItem(
-                    `路径: ${configuredPath || '(使用当前工作区)'}`,
+                    '路径',
                     vscode.TreeItemCollapsibleState.None,
                     'action',
                     () => {
                         vscode.commands.executeCommand('workbench.action.openSettings', 'memento.notesPath');
-                    }
-                ),
-                new CalendarItem(
-                    '📂 在 VSCode 中打开笔记目录',
-                    vscode.TreeItemCollapsibleState.None,
-                    'command',
-                    async () => {
-                        const notesPath = await getNotesRootPath();
-                        if (notesPath) {
-                            const uri = vscode.Uri.file(notesPath);
-                            await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
-                        } else {
-                            vscode.window.showErrorMessage('未找到笔记目录');
-                        }
-                    }
+                    },
+                    undefined,
+                    configuredPath || '(使用当前工作区)'
                 )
             ];
         }
@@ -167,7 +155,7 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
         if (element.label === '📄 笔记管理') {
             return [
                 new CalendarItem(
-                    `新笔记默认路径: ${config.defaultNotePath}`,
+                    '新笔记默认路径',
                     vscode.TreeItemCollapsibleState.None,
                     'action',
                     async () => {
@@ -183,7 +171,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
                             vscode.window.showInformationMessage('✓ 默认笔记路径已更新');
                             this.refresh();
                         }
-                    }
+                    },
+                    undefined,
+                    config.defaultNotePath
                 )
             ];
         }
@@ -191,7 +181,7 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
         if (element.label === '📁 文件过滤') {
             return [
                 new CalendarItem(
-                    `排除文件夹: ${config.excludeFolders.length > 0 ? config.excludeFolders.join(', ') : '(未设置)'}`,
+                    '排除文件夹',
                     vscode.TreeItemCollapsibleState.None,
                     'action',
                     async () => {
@@ -207,7 +197,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
                             vscode.window.showInformationMessage('✓ 排除文件夹设置已更新');
                             this.refresh();
                         }
-                    }
+                    },
+                    undefined,
+                    config.excludeFolders.length > 0 ? config.excludeFolders.join(', ') : '(未设置)'
                 )
             ];
         }
@@ -215,7 +207,7 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
         if (element.label === '📝 日记设置') {
             return [
                 new CalendarItem(
-                    `存储路径: ${config.dailyNotesPath}`,
+                    '存储路径',
                     vscode.TreeItemCollapsibleState.None,
                     'action',
                     async () => {
@@ -231,10 +223,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
                             vscode.window.showInformationMessage('✓ 日记路径已更新');
                             this.refresh();
                         }
-                    }
+                    },
+                    undefined,
+                    config.dailyNotesPath
                 ),
                 new CalendarItem(
-                    `文件名格式: ${config.dailyNoteFileNameFormat}`,
+                    '文件名格式',
                     vscode.TreeItemCollapsibleState.None,
                     'action',
                     async () => {
@@ -250,10 +244,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
                             vscode.window.showInformationMessage('✓ 日记文件名格式已更新');
                             this.refresh();
                         }
-                    }
+                    },
+                    undefined,
+                    config.dailyNoteFileNameFormat
                 ),
                 new CalendarItem(
-                    `模板路径: ${config.dailyNoteTemplatePath || '(使用默认模板)'}`,
+                    '模板路径',
                     vscode.TreeItemCollapsibleState.None,
                     'action',
                     async () => {
@@ -269,7 +265,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
                             vscode.window.showInformationMessage('✓ 日记模板路径已更新');
                             this.refresh();
                         }
-                    }
+                    },
+                    undefined,
+                    config.dailyNoteTemplatePath || '(使用默认模板)'
                 )
             ];
         }
@@ -277,7 +275,7 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
         if (element.label === '📊 周报设置') {
             return [
                 new CalendarItem(
-                    `存储路径: ${config.weeklyNotesPath}`,
+                    '存储路径',
                     vscode.TreeItemCollapsibleState.None,
                     'action',
                     async () => {
@@ -293,10 +291,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
                             vscode.window.showInformationMessage('✓ 周报路径已更新');
                             this.refresh();
                         }
-                    }
+                    },
+                    undefined,
+                    config.weeklyNotesPath
                 ),
                 new CalendarItem(
-                    `文件名格式: ${config.weeklyNoteFileNameFormat}`,
+                    '文件名格式',
                     vscode.TreeItemCollapsibleState.None,
                     'action',
                     async () => {
@@ -312,10 +312,12 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
                             vscode.window.showInformationMessage('✓ 周报文件名格式已更新');
                             this.refresh();
                         }
-                    }
+                    },
+                    undefined,
+                    config.weeklyNoteFileNameFormat
                 ),
                 new CalendarItem(
-                    `模板路径: ${config.weeklyNoteTemplatePath || '(使用默认模板)'}`,
+                    '模板路径',
                     vscode.TreeItemCollapsibleState.None,
                     'action',
                     async () => {
@@ -331,7 +333,9 @@ export class MainTreeProvider implements vscode.TreeDataProvider<MdFileItem | Ta
                             vscode.window.showInformationMessage('✓ 周报模板路径已更新');
                             this.refresh();
                         }
-                    }
+                    },
+                    undefined,
+                    config.weeklyNoteTemplatePath || '(使用默认模板)'
                 )
             ];
         }
