@@ -36,10 +36,11 @@ export class TodoControlItem extends vscode.TreeItem {
                     this.iconPath = new vscode.ThemeIcon('circle-outline');
                 }
             } else if (type === 'tag') {
-                // 标签项使用标签图标
+                // 标签项使用标签图标，根据进度设置颜色
                 if (isActive) {
                     this.iconPath = new vscode.ThemeIcon('tag', new vscode.ThemeColor('charts.yellow'));
                 } else {
+                    // 可以根据进度百分比设置不同的颜色
                     this.iconPath = new vscode.ThemeIcon('tag');
                 }
                 if (isPinned) {
@@ -191,19 +192,28 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
         }
         
         if (element.label === '按标签过滤') {
-            // 提取所有标签并统计
-            const tagCounts = new Map<string, number>();
+            // 提取所有标签并统计已完成和未完成数量
+            const tagStats = new Map<string, { completed: number; pending: number; total: number }>();
             
             for (const todo of this.todos) {
                 if (todo.tags && todo.tags.length > 0) {
                     for (const tag of todo.tags) {
-                        tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+                        if (!tagStats.has(tag)) {
+                            tagStats.set(tag, { completed: 0, pending: 0, total: 0 });
+                        }
+                        const stats = tagStats.get(tag)!;
+                        stats.total++;
+                        if (todo.completed) {
+                            stats.completed++;
+                        } else {
+                            stats.pending++;
+                        }
                     }
                 }
             }
             
             // 按标签名称排序，置顶标签在前
-            const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => {
+            const sortedTags = Array.from(tagStats.entries()).sort((a, b) => {
                 const aPinned = this.pinnedTodoTags.has(a[0]);
                 const bPinned = this.pinnedTodoTags.has(b[0]);
                 
@@ -212,9 +222,9 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
                     return aPinned ? -1 : 1;
                 }
                 
-                // 先按数量降序，再按名称升序
-                if (b[1] !== a[1]) {
-                    return b[1] - a[1];
+                // 先按总数降序，再按名称升序
+                if (b[1].total !== a[1].total) {
+                    return b[1].total - a[1].total;
                 }
                 return a[0].localeCompare(b[0]);
             });
@@ -232,18 +242,26 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
                 ];
             }
             
-            return sortedTags.map(([tag, count]) => {
+            return sortedTags.map(([tag, stats]) => {
                 const isPinned = this.pinnedTodoTags.has(tag);
-                return new TodoControlItem(
-                    `#${tag} (${count})`,
+                // 标签名作为 label
+                const label = `#${tag}`;
+                // 创建标签项
+                const item = new TodoControlItem(
+                    label,
                     vscode.TreeItemCollapsibleState.None,
                     'tag',
                     'byTag',
                     this.currentFilter === 'byTag' && this.currentTag === tag,
-                    count,
+                    stats.total,
                     tag,
                     isPinned
                 );
+                // 设置 description 只显示 n/n 格式
+                const description = `${stats.completed}/${stats.total}`;
+                item.description = isPinned ? `📌 ${description}` : description;
+                
+                return item;
             });
         }
         
@@ -377,5 +395,28 @@ export class TodoControlProvider implements vscode.TreeDataProvider<TodoControlI
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
+    }
+    
+    /**
+     * 生成进度条字符串（使用更美观的 Unicode 字符）
+     * @param completed 已完成数量
+     * @param total 总数量
+     * @param barLength 进度条长度（字符数）
+     * @returns 进度条字符串，例如: "▰▰▰▰▰▱▱▱▱▱ 50%"
+     */
+    private generateProgressBar(completed: number, total: number, barLength: number = 8): string {
+        if (total === 0) {
+            return '▱▱▱▱▱▱▱▱ 0%';
+        }
+        
+        const percentage = Math.round((completed / total) * 100);
+        const filledLength = Math.round((percentage / 100) * barLength);
+        const emptyLength = barLength - filledLength;
+        
+        // 使用更美观的方块字符：▰ (实心) 和 ▱ (空心)
+        const filled = '▰'.repeat(filledLength);
+        const empty = '▱'.repeat(emptyLength);
+        
+        return `${filled}${empty} ${percentage}%`;
     }
 }

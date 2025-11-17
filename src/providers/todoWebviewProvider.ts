@@ -628,6 +628,15 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             // 排序
             if (currentSort.column) {
                 sortTodos();
+            } else if (currentFilter === 'byTag' && currentTag) {
+                // 按标签过滤时，如果没有用户选择的排序，默认未完成的在前面
+                filteredTodos.sort((a, b) => {
+                    // 未完成的在前（completed: false 排在前面）
+                    if (a.completed !== b.completed) {
+                        return a.completed ? 1 : -1;
+                    }
+                    return 0;
+                });
             }
 
             renderTable();
@@ -639,6 +648,13 @@ export class TodoWebviewProvider implements vscode.WebviewViewProvider {
             const multiplier = direction === 'asc' ? 1 : -1;
 
             filteredTodos.sort((a, b) => {
+                // 按标签过滤时，先按完成状态排序（未完成的在前）
+                if (currentFilter === 'byTag' && currentTag) {
+                    if (a.completed !== b.completed) {
+                        return a.completed ? 1 : -1;
+                    }
+                }
+
                 let aVal, bVal;
 
                 switch (column) {
