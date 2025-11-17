@@ -4,7 +4,7 @@
 
 ### 让 Markdown 笔记管理变得优雅而高效
 
-[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg?style=flat-square)](https://github.com/wenyg/memento/releases)
+[![Version](https://img.shields.io/badge/version-0.2.3-blue.svg?style=flat-square)](https://github.com/wenyg/memento/releases)
 [![VSCode](https://img.shields.io/badge/VSCode-%5E1.85.0-007ACC.svg?style=flat-square&logo=visual-studio-code)](https://code.visualstudio.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)](./LICENSE)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/wenyg.memento?style=flat-square&label=downloads)](https://marketplace.visualstudio.com/items?itemName=wenyg.memento)
